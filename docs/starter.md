@@ -1,4 +1,4 @@
-# Build Brief: Digital Product Delivery for "Lead to Kickoff"
+# Build Brief: Digital Product Delivery for "Lead to Kickoff Product"
 
 You are building a small, production-grade delivery system for a digital product sold by VeilCode Studio. When someone pays on Stripe, they must automatically get an email with a secure download link to a PDF plus a link to a Google Drive folder of templates. That is the whole job. Build exactly this, nothing more.
 
