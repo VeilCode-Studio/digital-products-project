@@ -11,5 +11,5 @@ export const dynamic = "force-dynamic";
 export default async function NewProduct() {
   const owner = await ownerPage();
   const [store, related] = await Promise.all([getStore(), relatedChoices(null)]);
-  return <AdminShell storeName={store.name} owner={owner} active="/admin/products"><Link href="/admin/products" className="back-link"><ArrowLeft size={15} /> All products</Link><div className="admin-page-heading"><div><span className="eyebrow">FROM IDEA TO INBOX</span><h1>Something worth sharing.</h1><p>Give your next digital product a home.</p></div></div><ProductEditor id={randomUUID()} product={null} related={related} /></AdminShell>;
+  return <AdminShell storeName={store.name} owner={owner} active="/admin/products"><Link href="/admin/products" className="back-link"><ArrowLeft size={15} /> All digital products</Link><div className="admin-page-heading"><div><span className="eyebrow">FROM IDEA TO INBOX</span><h1>Something worth sharing.</h1><p>Give your next digital product a home.</p></div></div><ProductEditor id={randomUUID()} product={null} related={related} /></AdminShell>;
 }

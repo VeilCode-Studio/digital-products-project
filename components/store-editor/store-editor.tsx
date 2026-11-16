@@ -138,7 +138,7 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
 
   return <MediaProvider productId={productId} mediaBase={data.mediaBase} initial={data.media} used={used}>
     <div className="se">
-      <Link href="/admin/products" className="back-link se-back"><ArrowLeft size={15} aria-hidden /> All products</Link>
+      <Link href="/admin/stores" className="back-link se-back"><ArrowLeft size={15} aria-hidden /> All stores</Link>
       <div className="se-head" ref={heading}>
         <div className="se-head-title">
           <span className="se-head-icon"><Store size={20} aria-hidden /></span>

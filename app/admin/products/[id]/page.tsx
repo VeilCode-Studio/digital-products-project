@@ -19,13 +19,13 @@ export default async function EditProduct({ params, searchParams }: { params: Pr
   if (!product) notFound();
   if (product.kind === "physical") {
     const data = await loadStoreEditor(product.id);
-    return <AdminShell storeName={store.name} owner={owner} active="/admin/products"><StoreEditor key={`${product.id}-${data.product.revision}`} data={data} /></AdminShell>;
+    return <AdminShell storeName={store.name} owner={owner} active="/admin/stores"><StoreEditor key={`${product.id}-${data.product.revision}`} data={data} /></AdminShell>;
   }
   const [downloadStatus, related] = await Promise.all([getDownloadAvailability(product.storage_path), relatedChoices(product.id)]);
   if (product.id === "lead-to-kickoff" && !product.templates_url) product.templates_url = process.env.L2K_TEMPLATES_URL ?? null;
   const published = product.status === "published";
   return <AdminShell storeName={store.name} owner={owner} active="/admin/products">
-    <Link href="/admin/products" className="back-link"><ArrowLeft size={15} /> All products</Link>
+    <Link href="/admin/products" className="back-link"><ArrowLeft size={15} /> All digital products</Link>
     <div className="admin-page-heading">
       <div><span className="eyebrow">THE DETAILS MAKE THE DIFFERENCE</span><h1>Edit product</h1><p>Make it useful. Make it yours.</p></div>
       <div className="admin-heading-actions">

@@ -10,8 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function NewStorePage() {
   const owner = await ownerPage();
   const store = await getStore();
-  return <AdminShell storeName={store.name} owner={owner} active="/admin/products">
-    <Link href="/admin/products" className="back-link"><ArrowLeft size={15} /> All products</Link>
+  return <AdminShell storeName={store.name} owner={owner} active="/admin/stores">
+    <Link href="/admin/stores" className="back-link"><ArrowLeft size={15} /> All stores</Link>
     <div className="admin-page-heading"><div><span className="eyebrow">A STORE FOR ONE GREAT PRODUCT</span><h1>New physical store</h1><p>A premium single-product page, shipped from your supplier.</p></div></div>
     <NewStoreForm />
   </AdminShell>;
