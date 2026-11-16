@@ -97,10 +97,10 @@ export function ConnectionsView({ endpoint, initialConnections, activity }: { en
           <li>In a chat, turn the connector on from the tools menu. It works on Claude for mobile once connected.</li>
         </ol>}
         {client === "chatgpt" && <ol className="conn-steps">
-          <li>In ChatGPT, open <b>Settings → Apps &amp; Connectors → Advanced</b> and turn on <b>Developer mode</b> (paid plans). Without it ChatGPT can only read.</li>
-          <li>Back in <b>Apps &amp; Connectors</b>, choose <b>Create</b>. Name it <b>VeilCode Studio</b>, paste the server address, and pick <b>OAuth</b> for authentication.</li>
-          <li>Click <b>Create</b>, then sign in here and choose what ChatGPT may do.</li>
-          <li>In a chat, add VeilCode Studio from the <b>+</b> menu. Attached images can go straight into a draft store.</li>
+          <li>Open <a href="https://chatgpt.com/plugins" target="_blank" rel="noreferrer">chatgpt.com/plugins</a>, click <b>+</b> and choose <b>Add custom MCP server</b>.</li>
+          <li>Name it <b>VeilCode Studio</b>, choose <b>Public endpoint</b>, paste the server address and keep <b>OAuth</b> for authentication.</li>
+          <li>Accept the warning and click <b>Create as a plugin</b>. You&apos;ll sign in here and choose what ChatGPT may do.</li>
+          <li>In a chat, type <b>@</b> and pick VeilCode Studio. Attached images can go straight into a draft store.</li>
         </ol>}
         {needsToken && <>
           <ol className="conn-steps">
