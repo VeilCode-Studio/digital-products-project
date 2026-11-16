@@ -7,7 +7,7 @@ The studio runs its own MCP server at `https://pod.veilcode.studio/api/mcp`. Cla
 | Assistant | How it signs in | Steps |
 |---|---|---|
 | Claude (web, desktop, mobile) | App sign-in (OAuth) | Settings → Connectors → Add custom connector → paste the address → Connect, then approve on the studio's consent page. |
-| ChatGPT | App sign-in (OAuth) | Settings → Apps & Connectors → Advanced → turn on Developer mode (needed for anything beyond reading). Then Create → paste the address → OAuth → approve. |
+| ChatGPT | App sign-in (OAuth) | Open chatgpt.com/plugins → **+** → **Add custom MCP server**. Name it, choose **Public endpoint**, paste the address, keep OAuth, accept the warning and choose **Create as a plugin**. Approve in the browser, then type `@` in a chat and pick it. (ChatGPT signs its token requests with its published key; the studio checks it against chatgpt.com/oauth/jwks.json.) |
 | Claude Code | Personal token | Create a token under Connections, then `claude mcp add --transport http veilcode <address> --header "Authorization: Bearer <token>"`. |
 | Codex | Personal token | Create a token, add `[mcp_servers.veilcode]` with `url = "<address>"` and `bearer_token_env_var = "VEILCODE_MCP_TOKEN"` to `~/.codex/config.toml`, and set that variable. |
 

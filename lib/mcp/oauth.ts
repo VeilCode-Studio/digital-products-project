@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createPublicKey, randomBytes, timingSafeEqual, verify as verifySignature, type JsonWebKey } from "node:crypto";
 import { getSupabase } from "../supabase";
 import { getEnv } from "../env";
 import { HttpError } from "../http";
@@ -50,9 +50,12 @@ export function authorizationServerMetadata() {
     response_types_supported: ["code"],
     response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],
-    token_endpoint_auth_methods_supported: ["none", "client_secret_post", "client_secret_basic"],
+    token_endpoint_auth_methods_supported: ["none", "client_secret_post", "client_secret_basic", "private_key_jwt"],
+    token_endpoint_auth_signing_alg_values_supported: ["RS256"],
     revocation_endpoint_auth_methods_supported: ["none", "client_secret_post", "client_secret_basic"],
     code_challenge_methods_supported: ["S256"],
+    // Every authorization response carries iss (RFC 9207); ChatGPT refuses responses without it.
+    authorization_response_iss_parameter_supported: true,
     // Claude uses its published client document when both this and "none" (above) are advertised.
     client_id_metadata_document_supported: true,
     service_documentation: `${origin}/admin/connections`,
@@ -150,9 +153,12 @@ export async function resolveMetadataClient(clientId: string): Promise<McpClient
   const uris = doc.redirect_uris;
   if (!Array.isArray(uris) || uris.length < 1 || uris.length > 10 || !uris.every(validRedirectUri)) throw new OAuthError("invalid_client", "This app's client details list no usable return address.");
   const method = typeof doc.token_endpoint_auth_method === "string" ? doc.token_endpoint_auth_method : "none";
-  if (method !== "none") throw new OAuthError("invalid_client", "Only public clients can sign in with published client details.");
+  // A published client has no secret: it is public (PKCE alone), or it signs token requests with a
+  // private key whose public half it publishes at jwks_uri (ChatGPT).
+  const jwksUri = method === "private_key_jwt" && typeof doc.jwks_uri === "string" && /^https:\/\//.test(doc.jwks_uri) && doc.jwks_uri.length <= 500 ? doc.jwks_uri : null;
+  if (method !== "none" && !jwksUri) throw new OAuthError("invalid_client", "Published client details must describe a public client or one with a jwks_uri.");
   const name = typeof doc.client_name === "string" && doc.client_name.trim() ? doc.client_name.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, 120) : new URL(clientId).hostname;
-  const client = { client_id: clientId, name, redirect_uris: uris as string[], secret_hash: null };
+  const client = { client_id: clientId, name, redirect_uris: uris as string[], secret_hash: null, jwks_uri: jwksUri };
   const { error } = await getSupabase().from("mcp_clients").upsert(client);
   if (error) throw new OAuthError("server_error", "Could not save this app's details.", 500);
   return { ...client, created_at: new Date().toISOString() };
@@ -180,12 +186,19 @@ export async function readAuthorizeRequest(params: Record<string, string | undef
   const challenge = params.code_challenge ?? "";
   if (params.code_challenge_method !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(challenge)) throw new OAuthError("invalid_request", "PKCE with S256 is required.");
   const state = params.state ? params.state.slice(0, 1000) : null;
+  checkResource(params.resource);
   return { client, redirectUri, state, challenge, scopes: parseScopes(params.scope ?? "read research build") };
 }
 
+/** RFC 8707: a client may say which server the token is for. The studio has one, /api/mcp. */
+function checkResource(resource: string | null | undefined) {
+  if (resource && resource !== mcpResource()) throw new OAuthError("invalid_target", `This studio's MCP server is ${mcpResource()}.`);
+}
+
+/** Sends the app back to its redirect URI. Every response names this issuer (RFC 9207). */
 export function redirectWith(redirectUri: string, values: Record<string, string | null>) {
   const url = new URL(redirectUri);
-  for (const [key, value] of Object.entries(values)) if (value !== null) url.searchParams.set(key, value);
+  for (const [key, value] of Object.entries({ ...values, iss: appOrigin() })) if (value !== null) url.searchParams.set(key, value);
   return url.toString();
 }
 
@@ -228,11 +241,58 @@ function clientCredentials(form: URLSearchParams, authorization: string | null) 
   return { id: form.get("client_id") ?? "", secret: form.get("client_secret") };
 }
 
+const JWT_BEARER = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+
+function decodeSegment(segment: string): Record<string, unknown> {
+  try {
+    const value: unknown = JSON.parse(Buffer.from(segment, "base64url").toString("utf8"));
+    if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  } catch { /* handled below */ }
+  throw new OAuthError("invalid_client", "The client assertion is malformed.", 401);
+}
+
+/**
+ * private_key_jwt (RFC 7523): the client signs a short-lived JWT with its private key; the public key
+ * comes from the jwks_uri in its published client details, read fresh so key rotation just works.
+ */
+async function verifyClientAssertion(assertion: string, client: McpClient) {
+  const failed = () => new OAuthError("invalid_client", "Client authentication failed.", 401);
+  const parts = assertion.split(".");
+  if (parts.length !== 3 || assertion.length > 8000 || !client.jwks_uri) throw failed();
+  const header = decodeSegment(parts[0]);
+  const claims = decodeSegment(parts[1]);
+  if (header.alg !== "RS256") throw new OAuthError("invalid_client", "Sign the client assertion with RS256.", 401);
+  let keys: JsonWebKey[];
+  try {
+    const { bytes } = await downloadFile(client.jwks_uri, 64 * 1024);
+    const jwks = JSON.parse(new TextDecoder().decode(bytes)) as { keys?: unknown };
+    keys = Array.isArray(jwks.keys) ? (jwks.keys as JsonWebKey[]) : [];
+  } catch { throw new OAuthError("invalid_client", "Couldn't read this app's signing keys.", 401); }
+  const jwk = keys.find((key) => key.kty === "RSA" && (header.kid === undefined || key.kid === header.kid));
+  if (!jwk) throw failed();
+  let valid = false;
+  try {
+    valid = verifySignature("sha256", Buffer.from(`${parts[0]}.${parts[1]}`), createPublicKey({ key: jwk, format: "jwk" }), Buffer.from(parts[2], "base64url"));
+  } catch { valid = false; }
+  if (!valid) throw failed();
+  const now = Math.floor(Date.now() / 1000);
+  const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  const accepted = [`${appOrigin()}/api/oauth/token`, appOrigin()];
+  if (claims.iss !== client.client_id || claims.sub !== client.client_id) throw failed();
+  if (!audience.some((entry) => typeof entry === "string" && accepted.includes(entry))) throw failed();
+  if (typeof claims.exp !== "number" || claims.exp <= now - 60 || claims.exp > now + 86400) throw failed();
+  if (typeof claims.nbf === "number" && claims.nbf > now + 60) throw failed();
+}
+
 async function authenticateClient(form: URLSearchParams, authorization: string | null) {
-  const { id, secret } = clientCredentials(form, authorization);
+  const assertion = form.get("client_assertion");
+  const { id, secret } = assertion && form.get("client_assertion_type") === JWT_BEARER
+    ? { id: form.get("client_id") ?? String(decodeSegment(assertion.split(".")[1] ?? "").iss ?? ""), secret: null }
+    : clientCredentials(form, authorization);
   const client = await getClient(id);
   if (!client) throw new OAuthError("invalid_client", "Unknown client.", 401);
-  if (client.secret_hash && !(secret && safeEqual(hashSecret(secret), client.secret_hash))) throw new OAuthError("invalid_client", "Client authentication failed.", 401);
+  if (assertion) await verifyClientAssertion(assertion, client);
+  else if (client.secret_hash && !(secret && safeEqual(hashSecret(secret), client.secret_hash))) throw new OAuthError("invalid_client", "Client authentication failed.", 401);
   return client;
 }
 
@@ -276,6 +336,7 @@ export function verifyPkce(verifier: string, challenge: string) {
 
 export async function exchangeToken(form: URLSearchParams, authorization: string | null) {
   const client = await authenticateClient(form, authorization);
+  checkResource(form.get("resource"));
   const grant = form.get("grant_type");
   if (grant === "authorization_code") {
     const code = form.get("code") ?? "";

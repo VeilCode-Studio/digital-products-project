@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Connect an assistant", robots: { index: false, follow: false }, referrer: "same-origin" };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
-const PASSED = ["client_id", "redirect_uri", "response_type", "state", "code_challenge", "code_challenge_method", "scope"] as const;
+const PASSED = ["client_id", "redirect_uri", "response_type", "state", "code_challenge", "code_challenge_method", "scope", "resource"] as const;
 
 /** OAuth consent: the owner approves an assistant app (claude.ai, ChatGPT) and picks what it may do. */
 export default async function AuthorizePage({ searchParams }: Props) {

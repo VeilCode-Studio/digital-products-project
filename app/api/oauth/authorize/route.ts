@@ -4,7 +4,7 @@ import { approveAuthorization, OAuthError, parseScopes, readAuthorizeRequest, re
 
 export const runtime = "nodejs";
 
-const FIELDS = ["client_id", "redirect_uri", "response_type", "state", "code_challenge", "code_challenge_method", "scope"] as const;
+const FIELDS = ["client_id", "redirect_uri", "response_type", "state", "code_challenge", "code_challenge_method", "scope", "resource"] as const;
 
 /** The owner's answer on /oauth/authorize: back to the app with a code, or with access_denied. */
 export async function POST(req: Request) {

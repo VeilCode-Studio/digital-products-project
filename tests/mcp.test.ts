@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetFakes, seedOrder, seedProduct, state, storageList, upload } from "./fakes";
-import { approveAuthorization, createPersonalToken, exchangeToken, readAuthorizeRequest, registerClient, revokeConnection, verifyBearer, verifyPkce } from "../lib/mcp/oauth";
+import { approveAuthorization, createPersonalToken, exchangeToken, readAuthorizeRequest, redirectWith, registerClient, revokeConnection, verifyBearer, verifyPkce } from "../lib/mcp/oauth";
 import { appendUpload, finishUpload, privateAddress, startUpload, downloadFile } from "../lib/mcp/files";
 import type { McpScope } from "../lib/database.types";
 
@@ -118,6 +118,50 @@ describe("assistant sign-in (OAuth 2.1)", () => {
     // A document that doesn't name itself is refused.
     fetch.mockImplementationOnce(async () => Response.json({ client_id: "https://other.example/doc", redirect_uris: ["http://localhost/callback"] }));
     await expect(readAuthorizeRequest(params)).rejects.toThrow("don't match");
+  });
+
+  it("signs ChatGPT in with its published client details and a private-key-signed token request", async () => {
+    const CHATGPT = "https://chatgpt.com/oauth/client.json";
+    const JWKS = "https://chatgpt.com/oauth/jwks.json";
+    const CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect";
+    const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const fetch = vi.fn(async (input: string | URL | Request) => String(input) === JWKS
+      ? Response.json({ keys: [{ ...publicKey.export({ format: "jwk" }), kid: "cimd-1", use: "sig", alg: "RS256" }] })
+      : Response.json({ client_id: CHATGPT, client_name: "ChatGPT", redirect_uris: [CALLBACK], token_endpoint_auth_method: "private_key_jwt", token_endpoint_auth_signing_alg: "RS256", jwks_uri: JWKS }));
+    vi.stubGlobal("fetch", fetch);
+    const assertion = (claims: Record<string, unknown>, key = privateKey) => {
+      const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+      const signed = `${encode({ alg: "RS256", kid: "cimd-1", typ: "JWT" })}.${encode({ iss: CHATGPT, sub: CHATGPT, aud: `${ORIGIN}/api/oauth/token`, exp: Math.floor(Date.now() / 1000) + 300, jti: "j1", ...claims })}`;
+      return `${signed}.${sign("sha256", Buffer.from(signed), key).toString("base64url")}`;
+    };
+    const tokenRequest = (code: string, extra: Record<string, string>) => exchangeToken(new URLSearchParams({
+      grant_type: "authorization_code", code, redirect_uri: CALLBACK, code_verifier: VERIFIER, resource: `${ORIGIN}/api/mcp`,
+      client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", ...extra,
+    }), null);
+    const params = { client_id: CHATGPT, redirect_uri: CALLBACK, response_type: "code", code_challenge: CHALLENGE, code_challenge_method: "S256", state: "g1", resource: `${ORIGIN}/api/mcp` };
+    const request = await readAuthorizeRequest(params);
+    expect(request.client).toMatchObject({ client_id: CHATGPT, name: "ChatGPT", jwks_uri: JWKS });
+    // A token meant for some other server is refused up front.
+    await expect(readAuthorizeRequest({ ...params, resource: "https://other.example/mcp" })).rejects.toThrow("MCP server is");
+
+    const back = new URL(await approveAuthorization(request, ["read", "build"]));
+    expect(back.searchParams.get("iss")).toBe(ORIGIN);
+    expect(back.searchParams.get("state")).toBe("g1");
+    const code = back.searchParams.get("code")!;
+    // Wrong key, wrong audience, expired, or someone else's identity: all refused before the code is spent.
+    const { privateKey: otherKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    await expect(tokenRequest(code, { client_assertion: assertion({}, otherKey) })).rejects.toThrow("authentication failed");
+    await expect(tokenRequest(code, { client_assertion: assertion({ aud: "https://other.example/token" }) })).rejects.toThrow("authentication failed");
+    await expect(tokenRequest(code, { client_assertion: assertion({ exp: Math.floor(Date.now() / 1000) - 600 }) })).rejects.toThrow("authentication failed");
+    await expect(tokenRequest(code, { client_assertion: assertion({ iss: "https://claude.ai/oauth/mcp-oauth-client-metadata" }) })).rejects.toThrow(/authentication failed|Unknown client/);
+    const tokens = await tokenRequest(code, { client_assertion: assertion({}) });
+    expect(tokens).toMatchObject({ token_type: "Bearer", scope: "read build" });
+    expect(state.mcp_connections[0]).toMatchObject({ name: "ChatGPT", client_id: CHATGPT });
+    // Refreshing signs a fresh assertion the same way.
+    const refreshed = await exchangeToken(new URLSearchParams({ grant_type: "refresh_token", refresh_token: tokens.refresh_token, client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", client_assertion: assertion({ jti: "j2" }) }), null);
+    expect(refreshed.access_token).not.toBe(tokens.access_token);
+    // The decline path names the issuer too.
+    expect(new URL(redirectWith(CALLBACK, { error: "access_denied", state: "g1" })).searchParams.get("iss")).toBe(ORIGIN);
   });
 
   it("lets a registered desktop app come back on a new port", async () => {
