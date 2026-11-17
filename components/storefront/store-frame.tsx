@@ -6,6 +6,7 @@ import { POLICY_KINDS, POLICY_TITLES } from "@/lib/store-policies";
 import { themeVariables, THEME_TOKENS } from "@/lib/store-themes";
 import { storeFontVariables } from "@/app/s/[slug]/fonts";
 import { metaPixelLoader, pixelLoader } from "@/lib/tiktok-pixel";
+import { CartButton } from "./cart-button";
 
 type NavItem = { href: string; label: string };
 
@@ -32,7 +33,7 @@ export function StoreFrame({ store, children, nav = [], announcement, onStorePag
               : <span>{store.brand.name}</span>}
           </a>
           {nav.length > 0 && <nav className="st-nav" aria-label="Page sections">{nav.map((item) => <a key={item.href} href={item.href}>{item.label}</a>)}</nav>}
-          <a className="st-button small" href={onStorePage ? "#buy" : `${home}#buy`}>Shop now</a>
+          <CartButton href={onStorePage ? "#buy" : `${home}#buy`} label="Shop now" />
         </div>
       </header>
       {children}

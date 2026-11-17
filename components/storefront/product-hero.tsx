@@ -3,7 +3,9 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { trackAds } from "./tiktok";
-import { ChevronLeft, ChevronRight, Minus, Play, Plus, Truck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Minus, Play, Plus, Truck } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OPEN_CART_EVENT } from "./cart-button";
 import { discountedUnit, isAnimatedImage, MAX_OFFER_QUANTITY, offerFor, type Media, type QuantityOffer } from "@/lib/store-page";
 import type { PublicOption, PublicShipping, PublicVariant } from "@/lib/storefront";
 import { StoreIcon, badgeIcon } from "./icons";
@@ -62,7 +64,10 @@ export function ProductHero(props: Props) {
   const [error, setError] = useState("");
   const [delivery, setDelivery] = useState("");
   const [barVisible, setBarVisible] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const buyRef = useRef<HTMLDivElement>(null);
+  // The cart renders inside the store's themed root so its colours and fonts carry over.
+  const rootRef = useRef<HTMLElement | null>(null);
   // One reservation per selection: retries reuse it, a new variant or quantity starts a new one.
   const reservation = useRef<{ key: string; id: string } | null>(null);
 
@@ -126,6 +131,14 @@ export function ProductHero(props: Props) {
     return () => observer.disconnect();
   }, []);
 
+  // The header's shop button asks for the cart; cancelling the event tells it not to follow its link.
+  useEffect(() => {
+    rootRef.current = buyRef.current?.closest<HTMLElement>(".st") ?? null;
+    const open = (event: Event) => { event.preventDefault(); setCartOpen(true); };
+    window.addEventListener(OPEN_CART_EVENT, open);
+    return () => window.removeEventListener(OPEN_CART_EVENT, open);
+  }, []);
+
   async function buy() {
     if (!variant || pending) return;
     setPending(true);
@@ -160,7 +173,13 @@ export function ProductHero(props: Props) {
   const freeShipping = shipping.some((rate) => rate.amount === 0);
   const cheapestShipping = [...shipping].sort((a, b) => a.amount - b.amount)[0];
   const thumb = variant?.image ?? slides.find((entry) => entry.kind === "image")?.path;
-  const cta = pending ? "Opening secure checkout…" : !variant ? "Unavailable" : props.draft ? "Buy now (test)" : "Buy now";
+  const total = unit * quantity;
+  // The next bundle tier the shopper could reach, for the cart's nudge.
+  const nextOffer = [...props.offers].sort((a, b) => a.quantity - b.quantity).find((tier) => tier.quantity > quantity && tier.percentOff > (offer?.percentOff ?? 0)) ?? null;
+  const label = props.draft ? "Buy now (test)" : "Buy now";
+  // The total sits in its own keyed span so it replays a small pop whenever quantity or variant changes it.
+  const cta = pending ? "Opening secure checkout…" : !variant ? "Unavailable"
+    : <>{label}<span className="st-cta-total" key={total}>{money(total, currency)}</span></>;
 
   return (
     <section className="st-hero" id="buy" aria-label={props.name}>
@@ -262,7 +281,7 @@ export function ProductHero(props: Props) {
             </div>
             <button type="button" className="st-button st-buy" onClick={buy} disabled={!variant || pending}>{cta}</button>
           </div>
-          {offer && variant && <p className="st-offer-total" aria-live="polite">{quantity} × {money(unit, currency)} = <strong>{money(unit * quantity, currency)}</strong> · you save {money((price - unit) * quantity, currency)}</p>}
+          {variant && quantity > 1 && <p className="st-offer-total" aria-live="polite">{quantity} × {money(unit, currency)} = <strong>{money(total, currency)}</strong>{offer && <> · you save {money((price - unit) * quantity, currency)}</>}</p>}
           {error && <p className="st-error" role="alert">{error}</p>}
 
           {cheapestShipping && (
@@ -284,10 +303,48 @@ export function ProductHero(props: Props) {
       <div className={`st-sticky-bar${barVisible ? " visible" : ""}`} aria-hidden={!barVisible}>
         <div className="st-shell st-sticky-inner">
           {thumb && <span className="st-sticky-thumb"><Image src={props.mediaBase + thumb} alt="" fill sizes="48px" unoptimized={isAnimatedImage(thumb)} /></span>}
-          <span className="st-sticky-text"><strong>{props.name}</strong><span>{variant?.label ? `${variant.label} · ` : ""}{money(price, currency)}</span></span>
+          <span className="st-sticky-text"><strong>{props.name}</strong><span>{variant?.label ? `${variant.label} · ` : ""}{quantity > 1 ? `${quantity} × ` : ""}{money(unit, currency)}</span></span>
           <button type="button" className="st-button" onClick={buy} disabled={!variant || pending} tabIndex={barVisible ? 0 : -1}>{cta}</button>
         </div>
       </div>
+
+      <Dialog open={cartOpen} onOpenChange={(open) => setCartOpen(open)}>
+        <DialogContent container={rootRef} className="st-cart">
+          <DialogHeader className="st-cart-head">
+            <DialogTitle>Your cart</DialogTitle>
+            <DialogDescription>{quantity} item{quantity === 1 ? "" : "s"} · ships to the US</DialogDescription>
+          </DialogHeader>
+          {variant ? <>
+            <div className="st-cart-item">
+              {thumb && <span className="st-cart-thumb"><Image src={props.mediaBase + thumb} alt="" fill sizes="88px" unoptimized={isAnimatedImage(thumb)} /></span>}
+              <div className="st-cart-info">
+                <strong>{props.name}</strong>
+                {variant.label && <span>{variant.label}</span>}
+                <span>{money(unit, currency)} each{offer && <> <s>{money(price, currency)}</s></>}</span>
+                <div className="st-qty st-cart-qty" role="group" aria-label="Quantity">
+                  <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={quantity <= 1} aria-label="Decrease quantity"><Minus size={14} /></button>
+                  <output aria-live="polite">{quantity}</output>
+                  <button type="button" onClick={() => setQuantity((value) => Math.min(MAX_OFFER_QUANTITY, value + 1))} disabled={quantity >= MAX_OFFER_QUANTITY} aria-label="Increase quantity"><Plus size={14} /></button>
+                </div>
+              </div>
+              <strong className="st-cart-line" key={total}>{money(total, currency)}</strong>
+            </div>
+            {options.length > 0 && <a className="st-cart-edit" href="#buy" onClick={() => setCartOpen(false)}>Change {options.map((option) => option.name.toLowerCase()).join(" or ")}</a>}
+            {nextOffer && <p className="st-cart-nudge">Add {nextOffer.quantity - quantity} more to save {nextOffer.percentOff}% on every item.</p>}
+            <dl className="st-cart-sums">
+              <div><dt>Subtotal</dt><dd>{money(price * quantity, currency)}</dd></div>
+              {offer && <div className="is-saving"><dt>Bundle discount ({offer.percentOff}%)</dt><dd>−{money((price - unit) * quantity, currency)}</dd></div>}
+              {cheapestShipping && <div><dt>Shipping</dt><dd>{freeShipping ? "Free" : `From ${money(cheapestShipping.amount, currency)}`}</dd></div>}
+              <div className="st-cart-total"><dt>Total</dt><dd>{money(total, currency)}{cheapestShipping && !freeShipping && <span> + shipping</span>}</dd></div>
+            </dl>
+            {error && <p className="st-error" role="alert">{error}</p>}
+            <button type="button" className="st-button st-cart-checkout" onClick={buy} disabled={pending}>
+              {pending ? "Opening secure checkout…" : <>{props.draft ? "Checkout (test)" : "Checkout"}<span className="st-cta-total" key={total}>{money(total, currency)}</span></>}
+            </button>
+            <p className="st-cart-secure"><Lock size={14} aria-hidden /> Secure checkout with Stripe</p>
+          </> : <p className="st-cart-empty">That combination isn&apos;t available. <a href="#buy" onClick={() => setCartOpen(false)}>Choose another option</a>.</p>}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
