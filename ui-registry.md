@@ -59,12 +59,12 @@ The storefront uses a restrained studio aesthetic (variance 5, density 3). Admin
 
 ### VeilCode Studio branding
 
-Files: `components/store.tsx`, `public/brand/veilcode-mark.svg`, `public/brand/veilcode-logo.svg`, `app/globals.css`
+Files: `components/store.tsx`, `public/brand/podstore-mark.svg`, `public/brand/podstore-logo.svg`, `app/globals.css`
 Last updated: 2026-10-18
 
 | Property | Pattern |
 | --- | --- |
-| Mark | White VC monogram on `#2B59FF`; rounded square with a quarter-width corner radius |
+| Mark | White P-with-seed mark on `#2B59FF`; rounded square with a quarter-width corner radius |
 | Wordmark | Near-black `#171717`; live store name uses existing system sans, weight 650, letter spacing -.03em |
 | Spacing | 10px gap between the mark and store name |
 | Border / shadow | None |

@@ -7,11 +7,11 @@ import sharp from "sharp";
 async function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const brand = path.join(root, "public", "brand");
-  const mark = await fs.readFile(path.join(brand, "veilcode-mark.svg"));
-  const logo = await fs.readFile(path.join(brand, "veilcode-logo.svg"));
+  const mark = await fs.readFile(path.join(brand, "podstore-mark.svg"));
+  const logo = await fs.readFile(path.join(brand, "podstore-logo.svg"));
 
-  await sharp(mark).resize(512, 512).png().toFile(path.join(brand, "veilcode-mark.png"));
-  await sharp(logo, { density: 288 }).png().toFile(path.join(brand, "veilcode-logo.png"));
+  await sharp(mark).resize(512, 512).png().toFile(path.join(brand, "podstore-mark.png"));
+  await sharp(logo, { density: 288 }).png().toFile(path.join(brand, "podstore-logo.png"));
   await fs.writeFile(path.join(root, "app", "icon.svg"), mark);
   // Home-screen icons have an opaque background; the OS supplies its own corner mask.
   await sharp(mark).resize(180, 180).flatten({ background: "#2B59FF" }).png()

@@ -24,7 +24,7 @@ export function SiteHeader({ base = "", nav = true, cta = true }: { base?: "" | 
     <header className="vc-header" data-header>
       <div className="vc-header-inner vc-wrap">
         <Link href="/" className="vc-brand" aria-label="PodStore home">
-          <Image src="/brand/veilcode-mark.svg" alt="" width={32} height={32} />
+          <Image src="/brand/podstore-mark.svg" alt="" width={32} height={32} />
           <span>Pod<span>Store</span></span>
         </Link>
         {nav && (
@@ -47,7 +47,7 @@ export function SiteFooter({ store, products, support, base = "" }: { store: Sto
       <div className="vc-wrap">
         <div className="vc-footer-top">
           <div className="vc-footer-brand">
-            <Image src="/brand/veilcode-mark.svg" alt="" width={40} height={40} />
+            <Image src="/brand/podstore-mark.svg" alt="" width={40} height={40} />
             <p>{store.tagline || "Good systems. Better work."}</p>
           </div>
           <nav className="vc-footer-nav" aria-label="Footer">

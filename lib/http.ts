@@ -21,7 +21,9 @@ export function sameOriginForm(req: Request) {
   throw new HttpError(403, "Please submit this form from the store.");
 }
 export function apiError(error: unknown) {
-  if (!(error instanceof HttpError)) console.error(error instanceof ConfigurationError ? error.message : "Store request failed");
+  // Our own errors carry no shopper data; Stripe's say which parameter it refused, which is what a failed checkout needs.
+  if (!(error instanceof HttpError)) console.error(error instanceof ConfigurationError ? error.message : "Store request failed",
+    error instanceof Error && !(error instanceof ConfigurationError) ? `${error.name}: ${error.message.slice(0, 300)}` : "");
   return Response.json({ error: error instanceof HttpError ? error.message : "Something went wrong. Please try again." }, {
     status: error instanceof HttpError ? error.status : 500,
     headers: { "Cache-Control": "no-store" },

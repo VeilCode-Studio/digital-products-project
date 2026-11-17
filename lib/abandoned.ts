@@ -7,7 +7,8 @@ import type { Checkout } from "./catalog.types";
 // Abandoned checkout recovery. Stripe expires an unpaid Checkout Session after 24 hours; the webhook
 // records it here with Stripe's recovery link, which reopens the same cart for 30 days. The shopper's
 // email is kept only when they agreed on the checkout page to hear from the store (promotional
-// consent), so following up never emails someone who didn't ask.
+// consent), so following up never emails someone who didn't ask. Checkout doesn't ask for that consent
+// today (Stripe doesn't offer it in this account's country), so no email is kept.
 
 /** Recovery links stop working 30 days after the session expired. */
 export const RECOVERY_DAYS = 30;

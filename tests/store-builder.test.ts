@@ -87,7 +87,9 @@ describe("abandoned checkouts", () => {
   it("asks Stripe for a recovery link and promotional consent", async () => {
     seedPhysicalStore();
     await physicalRoute(checkoutRequest(randomUUID(), 1));
-    expect(sessionsCreate.mock.calls[0][0]).toMatchObject({ after_expiration: { recovery: { enabled: true } }, consent_collection: { promotions: "auto" } });
+    expect(sessionsCreate.mock.calls[0][0]).toMatchObject({ after_expiration: { recovery: { enabled: true } } });
+    // Stripe rejects promotional consent for this account's country, which failed every checkout.
+    expect(sessionsCreate.mock.calls[0][0]).not.toHaveProperty("consent_collection");
   });
 
   it("records an expired cart with its recovery link, keeping the email only with consent", async () => {
