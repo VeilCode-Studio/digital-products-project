@@ -6,6 +6,7 @@ import { buildPolicy, POLICY_KINDS, POLICY_TITLES, type PolicyKind } from "@/lib
 import { adPlatforms } from "@/lib/store-themes";
 import { StoreFrame } from "@/components/storefront/store-frame";
 import { AdChoices } from "@/components/storefront/tiktok";
+import { previewPath, signInForPreview } from "@/lib/preview-access";
 import "../../storefront.css";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,11 @@ const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZon
 
 export default async function PolicyPage(props: Params) {
   const found = await load(props);
-  if (!found) notFound();
+  if (!found) {
+    const [{ slug, policy }, query] = await Promise.all([props.params, props.searchParams]);
+    if (query.preview === "1") await signInForPreview(previewPath(`/s/${slug}/policies/${policy}`, query));
+    notFound();
+  }
   const { store, kind } = found;
   const doc = documentFor(store, kind);
   return (

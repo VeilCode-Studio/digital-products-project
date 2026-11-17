@@ -13,7 +13,7 @@ export async function GET() {
         order.physical_snapshot?.items[0]?.name ?? order.product_snapshot?.name ?? order.product_id,
         order.amount_total, order.currency, order.email_status, order.fulfillment_status ?? "", order.created_at])];
     return new Response("\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n"), {
-      headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="veilcode-latest-5000-orders.csv"', "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+      headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="podstore-latest-5000-orders.csv"', "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
     });
   } catch (error) { return apiError(error); }
 }

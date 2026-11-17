@@ -6,6 +6,7 @@ import { ProductHero } from "@/components/storefront/product-hero";
 import { reviewSummary, StoreSection } from "@/components/storefront/sections";
 import { StoreFrame } from "@/components/storefront/store-frame";
 import { AdEvent } from "@/components/storefront/tiktok";
+import { previewPath, signInForPreview } from "@/lib/preview-access";
 import "./storefront.css";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,11 @@ function money(amount: number, currency: string) {
 
 export default async function StorePage(props: Params) {
   const { store, query } = await load(props);
-  if (!store) notFound();
+  if (!store) {
+    // A signed-out owner opening a draft preview signs in first instead of seeing a 404.
+    if (query.preview === "1") await signInForPreview(previewPath(`/s/${(await props.params).slug}`, query));
+    notFound();
+  }
   const hero = heroOf(store);
   if (!hero || !store.variants.length) {
     if (!store.product.draft) notFound();

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
-/** `next` is checked by the login page: an admin path or the assistant consent page. */
+/** `next` is checked by the login page: an admin path, the assistant consent page, or a store preview. */
 export function LoginForm({ next = "/admin" }: { next?: string }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
