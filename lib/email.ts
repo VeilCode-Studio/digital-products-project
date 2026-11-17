@@ -31,7 +31,7 @@ export function buildDeliveryEmail(product: Product, token: string) {
 <p>${limit}</p>
 ${resourcesHtml}
 <p>Questions or problems? Just reply to this email.</p>
-<p>Frank<br>VeilCode Studio</p>
+<p>Frank<br>PodStore</p>
 </div>`,
     text: `Thanks for buying ${product.shortName}.
 
@@ -42,7 +42,7 @@ ${limit}${resourcesText}
 Questions or problems? Just reply to this email.
 
 Frank
-VeilCode Studio`,
+PodStore`,
   };
 }
 
@@ -59,7 +59,7 @@ export async function sendDeliveryEmail(input: {
   const message = buildDeliveryEmail(input.product, input.token);
   const resend = new Resend(env.RESEND_API_KEY);
   const { data, error } = await resend.emails.send({
-    from: "VeilCode Studio <orders@mail.veilcode.studio>",
+    from: "PodStore <orders@mail.veilcode.studio>",
     replyTo: "support@veilcode.studio",
     to: input.email,
     ...message,

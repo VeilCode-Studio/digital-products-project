@@ -23,14 +23,14 @@ export function SiteHeader({ base = "", nav = true, cta = true }: { base?: "" | 
   return (
     <header className="vc-header" data-header>
       <div className="vc-header-inner vc-wrap">
-        <Link href="/" className="vc-brand" aria-label="VeilCode Studio home">
+        <Link href="/" className="vc-brand" aria-label="PodStore home">
           <Image src="/brand/veilcode-mark.svg" alt="" width={32} height={32} />
-          <span>VeilCode <span>Studio</span></span>
+          <span>Pod<span>Store</span></span>
         </Link>
         {nav && (
           <nav className="vc-nav" aria-label="Main">
             <a href={`${base}#collection`}>Collection</a>
-            <a href={`${base}#why`}>Why VeilCode</a>
+            <a href={`${base}#why`}>Why PodStore</a>
             <a href={`${base}#questions`}>Questions</a>
           </nav>
         )}
@@ -68,9 +68,9 @@ export function SiteFooter({ store, products, support, base = "" }: { store: Sto
             </div>
           </nav>
         </div>
-        <p className="vc-wordmark" aria-hidden="true">VeilCode</p>
+        <p className="vc-wordmark" aria-hidden="true">PodStore</p>
         <div className="vc-footer-base">
-          <span>© {new Date().getFullYear()} {store.name || "VeilCode Studio"}</span>
+          <span>© {new Date().getFullYear()} {store.name || "PodStore"}</span>
           <span>Secure payments by Stripe</span>
         </div>
       </div>

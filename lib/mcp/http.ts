@@ -36,7 +36,7 @@ export function unauthorized(tokenSent: boolean) {
     ? json({ error: "invalid_token", error_description: "The access token is invalid or expired." }, 401, {
       "WWW-Authenticate": `Bearer error="invalid_token", error_description="The access token is invalid or expired.", ${metadata}`,
     })
-    : json({ error: "unauthorized", error_description: "Connect this app to VeilCode Studio to continue." }, 401, { "WWW-Authenticate": `Bearer ${metadata}` });
+    : json({ error: "unauthorized", error_description: "Connect this app to PodStore to continue." }, 401, { "WWW-Authenticate": `Bearer ${metadata}` });
 }
 
 export { protectedResourceMetadata };

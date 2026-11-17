@@ -1,4 +1,4 @@
-/* VeilCode Studio pages: the homepage (app/page.tsx) and product pages (app/p/[slug]). Everything is scoped under .vc so the rest of the store keeps
+/* PodStore pages: the homepage (app/page.tsx) and product pages (app/p/[slug]). Everything is scoped under .vc so the rest of the store keeps
    its own styles. One accent (the brand cobalt), one light theme with a single dark block for what's
    coming next, and one shape rule: buttons are pills, surfaces are 28-36px, images inside them 12-18px. */
 
@@ -149,7 +149,7 @@
 .vc-empty svg { color: var(--vc-cobalt); margin-bottom: 6px; }
 .vc-empty h3 { font-size: 22px; font-weight: 640; letter-spacing: -.03em; color: var(--vc-ink); }
 
-/* Why VeilCode: four cells, four surfaces */
+/* Why PodStore: four cells, four surfaces */
 .vc-why-title { max-width: 11em; margin-bottom: 48px; }
 .vc-bento { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .vc-cell { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 32px; min-height: 290px; padding: 34px; border-radius: 30px; }

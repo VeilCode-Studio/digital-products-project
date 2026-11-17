@@ -21,7 +21,7 @@ import type { Caller } from "./oauth";
 // Claude Code see the same tools. Each connection only gets the tools its scopes allow, and every call
 // is logged. Built fresh per request (stateless), so it scales like any other route.
 
-const INSTRUCTIONS = `VeilCode Studio is a one-person store selling digital products (guides, templates; pages at /p/<slug>) and physical dropshipped products, each with its own single-product store (/s/<slug>), mainly to US shoppers.
+const INSTRUCTIONS = `PodStore is a one-person store selling digital products (guides, templates; pages at /p/<slug>) and physical dropshipped products, each with its own single-product store (/s/<slug>), mainly to US shoppers.
 
 Use these tools to report on the store, research products, and build drafts:
 - Performance and orders: get_store_overview, list_orders, get_order. Lists leave out customer names and addresses; get_order shows them for one order.
@@ -58,7 +58,7 @@ function summarise(args: Record<string, unknown>) {
 }
 
 export function buildMcpServer(caller: Caller) {
-  const server = new McpServer({ name: "veilcode-studio", title: "VeilCode Studio", version: "1.0.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "podstore", title: "PodStore", version: "1.0.0" }, { instructions: INSTRUCTIONS });
   const allowed = new Set<McpScope>(caller.scopes);
 
   function tool<S extends z.ZodRawShape>(scope: McpScope, name: string, config: { title: string; description: string; input: S; annotations: object; meta?: Record<string, unknown> },

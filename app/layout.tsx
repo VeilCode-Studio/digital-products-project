@@ -7,8 +7,8 @@ const environment = deploymentLabel();
 const production = environment === "production";
 
 export const metadata: Metadata = {
-  title: { default: "VeilCode Studio", template: "%s | VeilCode Studio" },
-  description: "Practical guides and editable templates for independent creatives. The VeilCode Studio collection.",
+  title: { default: "PodStore", template: "%s | PodStore" },
+  description: "Practical guides and editable templates for independent creatives. The PodStore collection.",
   // Only production may be indexed; a preview must never compete with the real store.
   robots: production ? { index: true, follow: true } : { index: false, follow: false },
   referrer: "no-referrer",

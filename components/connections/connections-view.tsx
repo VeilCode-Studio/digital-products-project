@@ -92,15 +92,15 @@ export function ConnectionsView({ endpoint, initialConnections, activity }: { en
 
         {client === "claude" && <ol className="conn-steps">
           <li>In Claude (web or desktop), open <b>Settings → Connectors</b> and choose <b>Add custom connector</b>.</li>
-          <li>Name it <b>VeilCode Studio</b> and paste the server address above.</li>
+          <li>Name it <b>PodStore</b> and paste the server address above.</li>
           <li>Click <b>Connect</b>. You&apos;ll sign in here and choose what Claude may do.</li>
           <li>In a chat, turn the connector on from the tools menu. It works on Claude for mobile once connected.</li>
         </ol>}
         {client === "chatgpt" && <ol className="conn-steps">
           <li>Open <a href="https://chatgpt.com/plugins" target="_blank" rel="noreferrer">chatgpt.com/plugins</a>, click <b>+</b> and choose <b>Add custom MCP server</b>.</li>
-          <li>Name it <b>VeilCode Studio</b>, choose <b>Public endpoint</b>, paste the server address and keep <b>OAuth</b> for authentication.</li>
+          <li>Name it <b>PodStore</b>, choose <b>Public endpoint</b>, paste the server address and keep <b>OAuth</b> for authentication.</li>
           <li>Accept the warning and click <b>Create as a plugin</b>. You&apos;ll sign in here and choose what ChatGPT may do.</li>
-          <li>In a chat, type <b>@</b> and pick VeilCode Studio. Attached images can go straight into a draft store.</li>
+          <li>In a chat, type <b>@</b> and pick PodStore. Attached images can go straight into a draft store.</li>
         </ol>}
         {needsToken && <>
           <ol className="conn-steps">

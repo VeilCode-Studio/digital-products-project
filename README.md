@@ -1,4 +1,4 @@
-# VeilCode Studio shop
+# PodStore shop
 
 A single-owner digital product store built with Next.js App Router, TypeScript, Supabase, Stripe, and Resend. Create products, set prices, upload downloads, and publish from `/admin`. Buyers browse `/`, open `/p/<slug>`, and pay through a Stripe Checkout Session created by the application. **No Stripe Payment Links are needed.**
 
@@ -85,7 +85,7 @@ For a deployed test environment, create a public webhook endpoint at `${APP_URL}
 
 Choose the matching API version, use events from your own account, and copy the endpoint secret to `STRIPE_WEBHOOK_SECRET`. Stripe keys need access to create/retrieve/update Products, create/retrieve Prices, and create/retrieve Checkout Sessions. A suitably scoped restricted key can be used instead of a broad secret key.
 
-Verify Resend can send from `VeilCode Studio <orders@mail.veilcode.studio>`. Delivery email replies currently go to `support@veilcode.studio`; changing the storefront support field does not reconfigure the verified email sender or reply-to. No marketing broadcasts are sent by this app.
+Verify Resend can send from `PodStore <orders@mail.veilcode.studio>`. Delivery email replies currently go to `support@veilcode.studio`; changing the storefront support field does not reconfigure the verified email sender or reply-to. No marketing broadcasts are sent by this app.
 
 ## 5. Create and publish a product
 

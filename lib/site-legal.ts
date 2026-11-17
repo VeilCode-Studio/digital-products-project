@@ -7,7 +7,7 @@ import { MAX_DOWNLOADS, TOKEN_LIFETIME_DAYS } from "./tokens";
 /** Change this when the wording changes, so the pages show the right date. */
 export const LEGAL_UPDATED = "2026-11-13";
 /** The person or business that sells. */
-export const SELLER = "VeilCode Studio";
+export const SELLER = "PodStore";
 /** Where disputes are decided. */
 export const GOVERNING_LAW = "Uganda";
 /** How quickly the studio answers privacy, deletion and refund requests. */

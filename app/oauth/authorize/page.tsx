@@ -29,7 +29,7 @@ export default async function AuthorizePage({ searchParams }: Props) {
 
   return <main className={`oauth ${monaSans.variable}`}>
     <div className="oauth-card">
-      <div className="oauth-brand"><span className="oauth-mark">VC</span><span>VeilCode Studio</span></div>
+      <div className="oauth-brand"><span className="oauth-mark">PS</span><span>PodStore</span></div>
       {!request ? <>
         <div className="oauth-icon warn"><TriangleAlert size={22} /></div>
         <h1>This connection can&apos;t continue</h1>

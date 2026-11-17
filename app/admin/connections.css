@@ -43,7 +43,7 @@
 .admin-shell .conn-scopes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .admin-shell .conn-scopes button {
   display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px dashed #cdd3e0; background: #fff;
-  color: var(--ad-soft); font: inherit; font-size: 11.5px; font-weight: 580; cursor: pointer; transition: background .2s ease, color .2s ease, border-color .2s ease;
+  color: var(--ad-soft); font: inherit; font-size: 11.5px; font-weight: 580; white-space: nowrap; cursor: pointer; transition: background .2s ease, color .2s ease, border-color .2s ease;
 }
 .admin-shell .conn-scopes button.on { border-style: solid; border-color: transparent; background: var(--ad-wash); color: var(--ad-cobalt-deep); }
 .admin-shell .conn-scopes button:focus-visible { outline: 2px solid var(--ad-cobalt); outline-offset: 2px; }
@@ -61,8 +61,8 @@
 
 @media (max-width: 800px) {
   .admin-shell .conn-body { padding: 18px; }
-  .admin-shell .conn-list li { flex-wrap: wrap; padding: 16px 18px; }
-  .admin-shell .conn-off { margin-left: 56px; }
+  .admin-shell .conn-list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: start; gap: 12px 14px; padding: 16px 18px; }
+  .admin-shell .conn-off { grid-column: 2; justify-self: start; }
   .admin-shell .conn-log li { grid-template-columns: minmax(0, 1fr) auto; padding: 11px 18px; }
   .admin-shell .conn-log-what { grid-column: 1 / -1; white-space: normal; }
 }

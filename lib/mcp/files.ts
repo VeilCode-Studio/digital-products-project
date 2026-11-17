@@ -43,7 +43,7 @@ export async function downloadFile(link: string, maxBytes = MAX_FILE_BYTES) {
   for (let hop = 0; ; hop++) {
     let response: Response;
     try {
-      response = await fetch(url, { redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(20_000), headers: { "User-Agent": "VeilCodeStudio/1.0 (+media import)" } });
+      response = await fetch(url, { redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(20_000), headers: { "User-Agent": "PodStore/1.0 (+media import)" } });
     } catch { throw new HttpError(502, "Couldn't download that file. Check the link and try again."); }
     if (response.status >= 300 && response.status < 400) {
       const next = response.headers.get("location");

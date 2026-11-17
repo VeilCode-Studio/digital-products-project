@@ -10,7 +10,7 @@ import { PageEffects } from "./page-effects";
 
 // One layout for /privacy, /terms, /refunds and /data-deletion. Styles: app/studio.css (.vc-legal).
 
-const FALLBACK_STORE: Store = { id: "", owner_user_id: null, name: "VeilCode Studio", tagline: "", bio: "", support_email: SUPPORT_FALLBACK, website_url: null };
+const FALLBACK_STORE: Store = { id: "", owner_user_id: null, name: "PodStore", tagline: "", bio: "", support_email: SUPPORT_FALLBACK, website_url: null };
 const ROOT_ID = "vc-legal-page";
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" });
 
@@ -29,7 +29,7 @@ export async function LegalPage({ kind }: { kind: LegalKind }) {
       <span className="vc-sentinel" data-top-sentinel aria-hidden="true" />
       <SiteHeader base="/" cta={false} />
       <main className="vc-wrap vc-legal">
-        <Link className="vc-back" href="/"><ArrowLeft size={16} aria-hidden="true" /> VeilCode Studio</Link>
+        <Link className="vc-back" href="/"><ArrowLeft size={16} aria-hidden="true" /> PodStore</Link>
         <div className="vc-legal-grid">
           <nav className="vc-legal-nav" aria-label="Legal">
             {LEGAL_KINDS.map((other) => (

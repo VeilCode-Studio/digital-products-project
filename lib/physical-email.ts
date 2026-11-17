@@ -258,7 +258,7 @@ export async function sendOwnerCancellationAlert(order: Order, ownerEmail: strin
   const lines = [`${snapshot.brand.name}: the customer cancelled order ${reference} using the link in their delay notice, and was refunded ${amount}.`, supplier];
   const subject = `Order ${reference} cancelled by the customer`;
   const { data, error } = await new Resend(env.RESEND_API_KEY).emails.send({
-    from: "VeilCode Studio <orders@mail.veilcode.studio>",
+    from: "PodStore <orders@mail.veilcode.studio>",
     to: ownerEmail,
     subject: deployment.production ? subject : `[${deployment.env === "preview" ? "Preview" : "Dev"}] ${subject}`,
     html: `<div style="${WRAP}">${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}<p><a href="${escapeHtml(link)}" style="${BUTTON}">Open Fulfilment</a></p></div>`,

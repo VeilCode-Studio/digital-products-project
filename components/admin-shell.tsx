@@ -8,7 +8,7 @@ import { monaSans } from "@/app/studio-fonts";
 
 // The sidebar, in the order the work flows: find, sell, fulfil, then the assistants and settings.
 const links = [{ href: "/admin", label: "Overview", Icon: LayoutDashboard }, { href: "/admin/research", label: "Research", Icon: Radar }, { href: "/admin/products", label: "Digital products", Icon: Package }, { href: "/admin/stores", label: "Physical stores", Icon: Store }, { href: "/admin/orders", label: "Orders", Icon: Receipt }, { href: "/admin/fulfillment", label: "Fulfilment", Icon: Truck }, { href: "/admin/connections", label: "Connections", Icon: Plug }, { href: "/admin/settings", label: "Store settings", Icon: Settings }];
-export function AdminShell({ children, active, storeName = "VeilCode Studio", owner }: {
+export function AdminShell({ children, active, storeName = "PodStore", owner }: {
   children: React.ReactNode;
   active: string;
   storeName?: string;

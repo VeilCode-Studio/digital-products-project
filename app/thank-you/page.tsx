@@ -39,20 +39,20 @@ export default function ThankYou() {
               <circle cx="262" cy="37" r="3" fill="#B9C9F5" />
             </svg>
             <p>A little less guesswork.<br /><em>A little more possibility.</em></p>
-            <div className="thank-you-note-bottom"><span>MADE WITH CARE</span><span>VEILCODE STUDIO</span></div>
+            <div className="thank-you-note-bottom"><span>MADE WITH CARE</span><span>PODSTORE</span></div>
           </div>
         </section>
         <section className="thank-you-next" aria-labelledby="thank-you-next-title">
           <div className="thank-you-section-heading"><span className="eyebrow">THE NEXT LITTLE STEPS</span><h2 id="thank-you-next-title">From here to your first good idea.</h2></div>
           <ol className="thank-you-steps">
-            <li><span className="thank-you-step-number" aria-hidden="true">01</span><div><h3>Check your inbox</h3><p>Look for an email from VeilCode Studio. If it hasn&apos;t arrived after a few minutes, check spam or promotions.</p></div></li>
+            <li><span className="thank-you-step-number" aria-hidden="true">01</span><div><h3>Check your inbox</h3><p>Look for an email from PodStore. If it hasn&apos;t arrived after a few minutes, check spam or promotions.</p></div></li>
             <li><span className="thank-you-step-number" aria-hidden="true">02</span><div><h3>Save your download</h3><p>Your link works for {TOKEN_LIFETIME_DAYS} days and up to {MAX_DOWNLOADS} downloads. Keep a copy somewhere you can find it.</p></div></li>
             <li><span className="thank-you-step-number" aria-hidden="true">03</span><div><h3>Make it your own</h3><p>Open your files, find a useful starting point, and put it to work. Small steps count.</p></div></li>
           </ol>
         </section>
         <aside className="thank-you-support"><div><strong>A real person, if you need one.</strong><p>Missing an email or having trouble with a file? We&apos;re here to help.</p></div><a href="mailto:support@veilcode.studio">Get in touch <span aria-hidden="true">↗</span></a></aside>
       </main>
-      <footer className="thank-you-footer"><span>Thanks for supporting independent work.</span><span>Frank, VeilCode Studio</span></footer>
+      <footer className="thank-you-footer"><span>Thanks for supporting independent work.</span><span>Frank, PodStore</span></footer>
     </div>
   );
 }

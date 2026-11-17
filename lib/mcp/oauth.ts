@@ -68,7 +68,7 @@ export function protectedResourceMetadata() {
     authorization_servers: [appOrigin()],
     scopes_supported: [...SCOPES],
     bearer_methods_supported: ["header"],
-    resource_name: "VeilCode Studio",
+    resource_name: "PodStore",
     resource_documentation: `${appOrigin()}/admin/connections`,
   };
 }

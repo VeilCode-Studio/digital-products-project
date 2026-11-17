@@ -324,8 +324,8 @@ describe("with the official MCP client", () => {
     }) as typeof fetch;
     const client = new Client({ name: "test-client", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${ORIGIN}/api/mcp`), { fetch: fetchToRoute, requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
-    expect(client.getServerVersion()).toMatchObject({ name: "veilcode-studio" });
-    expect(client.getInstructions()).toContain("VeilCode Studio");
+    expect(client.getServerVersion()).toMatchObject({ name: "podstore" });
+    expect(client.getInstructions()).toContain("PodStore");
     const { tools } = await client.listTools();
     expect(tools.find((tool) => tool.name === "list_orders")?.annotations).toMatchObject({ readOnlyHint: true });
     const result = await client.callTool({ name: "list_products", arguments: {} });

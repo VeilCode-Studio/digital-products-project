@@ -36,7 +36,7 @@ async function main() {
     offset += frames[i].length;
   }
   await fs.writeFile(path.join(root, "app", "favicon.ico"), Buffer.concat([directory, ...frames]));
-  console.log("Generated VeilCode logo, mark, favicon, and Apple touch icon.");
+  console.log("Generated PodStore logo, mark, favicon, and Apple touch icon.");
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -16,8 +16,8 @@ import "./studio.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: { absolute: "VeilCode Studio | Made to be used" },
-  description: "Ready-to-run business systems and carefully chosen products from VeilCode Studio, an independent studio.",
+  title: { absolute: "PodStore | Made to be used" },
+  description: "Ready-to-run business systems and carefully chosen products from PodStore, an independent studio.",
 };
 
 const ROOT_ID = "vc-home";
@@ -55,7 +55,7 @@ export default async function Home() {
             <p className="vc-lede">Ready-to-run business systems and carefully chosen products from an independent studio. Clear, practical and beautifully made.</p>
             <div className="vc-actions">
               <a className="vc-button" href="#collection">Shop the collection <ArrowRight size={18} aria-hidden="true" /></a>
-              <a className="vc-text-link" href="#why">Why VeilCode</a>
+              <a className="vc-text-link" href="#why">Why PodStore</a>
             </div>
           </div>
           <HeroStage>
@@ -241,7 +241,7 @@ function Unavailable() {
     <div id={ROOT_ID} className={`vc ${monaSans.variable}`}>
       <SiteHeader nav={false} />
       <main className="vc-wrap vc-unavailable">
-        <p className="vc-eyebrow">VeilCode Studio</p>
+        <p className="vc-eyebrow">PodStore</p>
         <h1 className="vc-display"><span>Good things</span> <span>are on the way.</span></h1>
         <p className="vc-lede">The shop is taking a short break. Please check back soon, or email us at {SUPPORT_FALLBACK}.</p>
         <a className="vc-button" href={`mailto:${SUPPORT_FALLBACK}`}>Email the studio <ArrowRight size={18} aria-hidden="true" /></a>

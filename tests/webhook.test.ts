@@ -47,7 +47,7 @@ describe("Stripe fulfillment", () => {
     expect(order.email_sent_at).toBeTruthy();
     expect(Date.parse(order.token_expires_at!)).toBeGreaterThanOrEqual(before + 14 * 86400_000);
     const [email, options] = sendEmail.mock.calls[0];
-    expect(email).toMatchObject({ from: "VeilCode Studio <orders@mail.veilcode.studio>", replyTo: "support@veilcode.studio", to: "buyer@example.com", subject: "Your Lead to Kickoff kit is ready" });
+    expect(email).toMatchObject({ from: "PodStore <orders@mail.veilcode.studio>", replyTo: "support@veilcode.studio", to: "buyer@example.com", subject: "Your Lead to Kickoff kit is ready" });
     expect(email.html).toContain("00 Start Here");
     expect(email.text).toContain("File > Make a copy");
     const token = new URL(email.text.match(/https:\/\/delivery\.example\.com\/api\/download\?token=\S+/)[0]).searchParams.get("token")!;
