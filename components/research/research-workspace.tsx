@@ -147,7 +147,7 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
               {ad.title && <p className="research-ad-title">{ad.title}</p>}
               {ad.text && <p className="research-ad-text">{ad.text}</p>}
               <footer>
-                <a href={ad.url} target="_blank" rel="noopener noreferrer">View ad <ArrowUpRight size={13} /></a>
+                <a href={ad.url} target="_blank" rel="noopener noreferrer">See ad on Meta <ArrowUpRight size={13} /></a>
                 <button type="button" className="button secondary small" disabled={pending === `ad:${ad.id}` || savedAdIds.has(ad.id)} onClick={() => saveAd(ad)}>
                   {savedAdIds.has(ad.id) ? "Saved" : pending === `ad:${ad.id}` ? "Saving…" : <><Plus size={14} /> Save</>}
                 </button>

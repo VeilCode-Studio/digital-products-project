@@ -12,12 +12,12 @@ const GRAPH = "https://graph.facebook.com/v27.0";
 export const META_COUNTRIES = ["GB", "IE", "DE", "FR", "NL", "SE"] as const;
 const FIELDS = [
   "id", "page_id", "page_name", "ad_creative_bodies", "ad_creative_link_titles", "ad_delivery_start_time",
-  "ad_snapshot_url", "eu_total_reach", "publisher_platforms",
+  "eu_total_reach", "publisher_platforms",
 ].join(",");
 
 type ArchiveAd = {
   id: string; page_id?: string; page_name?: string; ad_creative_bodies?: string[]; ad_creative_link_titles?: string[];
-  ad_delivery_start_time?: string; ad_snapshot_url?: string; eu_total_reach?: number; publisher_platforms?: string[];
+  ad_delivery_start_time?: string; eu_total_reach?: number; publisher_platforms?: string[];
 };
 type GraphError = { error?: { code?: number; error_subcode?: number; message?: string } };
 
@@ -39,7 +39,9 @@ export function summariseAds(ads: ArchiveAd[], now = Date.now()): MetaAd[] {
       return {
         id: ad.id, page: ad.page_name ?? "Unknown advertiser", pageId: ad.page_id ?? "",
         text: clip(firstLine(ad.ad_creative_bodies), 280), title: clip(firstLine(ad.ad_creative_link_titles), 120),
-        url: ad.ad_snapshot_url?.startsWith("https://") ? ad.ad_snapshot_url : `https://www.facebook.com/ads/library/?id=${encodeURIComponent(ad.id)}`,
+        // The public Ad Library page shows the ad with its images and video. The API's ad_snapshot_url only
+        // opens with our access token, so it can't be linked; the API returns no media files for product ads.
+        url: `https://www.facebook.com/ads/library/?id=${encodeURIComponent(ad.id)}`,
         startedAt, daysRunning: daysSince(startedAt, now), reach: typeof ad.eu_total_reach === "number" ? ad.eu_total_reach : null,
         versions: counts.get(key(ad)) ?? 1, platforms: ad.publisher_platforms ?? [],
       };
