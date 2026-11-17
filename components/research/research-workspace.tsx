@@ -6,6 +6,8 @@ import {
   longestRunning, META_MEDIA, META_MIN_DAYS, STAGE_HINTS, STAGE_LABELS, STAGES, unitEconomics,
   type CjProduct, type MetaAd, type MetaFilters, type MetaSearch, type ResearchCard, type ResearchProduct,
 } from "@/lib/research.types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { dollars, metaLibraryUrl, researchApi } from "./api";
 import { ResearchDrawer } from "./research-drawer";
 
@@ -24,7 +26,26 @@ const elsewhere = (query: string) => [
 type AdFilters = Required<MetaFilters> & { minVersions: 1 | 3 | 5; collapse: boolean; sort: "signal" | "days" | "reach" };
 const DEFAULT_FILTERS: AdFilters = { minDays: 0, media: "ALL", minVersions: 1, collapse: true, sort: "signal" };
 const FILTERS_KEY = "veilcode:research-ad-filters";
-const MEDIA_LABELS = { ALL: "Any media", VIDEO: "Video", IMAGE: "Image" } as const;
+type Option<T> = { value: T; label: string };
+const DAY_OPTIONS: Option<AdFilters["minDays"]>[] = META_MIN_DAYS.map((days) => ({ value: days, label: days === 0 ? "Any time" : `${days}+ days` }));
+const MEDIA_OPTIONS: Option<AdFilters["media"]>[] = META_MEDIA.map((media) => ({ value: media, label: { ALL: "Any media", VIDEO: "Video", IMAGE: "Image" }[media] }));
+const VERSION_OPTIONS: Option<AdFilters["minVersions"]>[] = [{ value: 1, label: "Any" }, { value: 3, label: "3+" }, { value: 5, label: "5+" }];
+const SORT_OPTIONS: Option<AdFilters["sort"]>[] = [{ value: "signal", label: "Strongest signal" }, { value: "days", label: "Longest running" }, { value: "reach", label: "Most reach" }];
+
+/** A labelled shadcn Select for one filter. */
+function FilterSelect<T extends string | number>({ id, label, value, options, onChange }: {
+  id: string; label: string; value: T; options: Option<T>[]; onChange: (value: T) => void;
+}) {
+  return <div className="research-filter">
+    <span id={`${id}-label`} className="research-filter-label">{label}</span>
+    <Select items={options} value={value} onValueChange={(next) => { if (next !== null) onChange(next as T); }}>
+      <SelectTrigger id={id} aria-labelledby={`${id}-label`} className="research-filter-trigger"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {options.map((option) => <SelectItem key={String(option.value)} value={option.value}>{option.label}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  </div>;
+}
 
 function readFilters(): AdFilters {
   try {
@@ -185,30 +206,12 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
       </form>}
 
       {tab === "meta" && meta && <div className="research-filters" role="group" aria-label="Filter ads">
-        <label>Running
-          <select value={filters.minDays} onChange={(event) => filter({ minDays: Number(event.target.value) as AdFilters["minDays"] })}>
-            {META_MIN_DAYS.map((days) => <option key={days} value={days}>{days === 0 ? "Any time" : `${days}+ days`}</option>)}
-          </select>
-        </label>
-        <label>Media
-          <select value={filters.media} onChange={(event) => filter({ media: event.target.value as AdFilters["media"] })}>
-            {META_MEDIA.map((media) => <option key={media} value={media}>{MEDIA_LABELS[media]}</option>)}
-          </select>
-        </label>
-        <label>Versions
-          <select value={filters.minVersions} onChange={(event) => filter({ minVersions: Number(event.target.value) as AdFilters["minVersions"] })}>
-            {([1, 3, 5] as const).map((count) => <option key={count} value={count}>{count === 1 ? "Any" : `${count}+`}</option>)}
-          </select>
-        </label>
-        <label>Sort
-          <select value={filters.sort} onChange={(event) => filter({ sort: event.target.value as AdFilters["sort"] })}>
-            <option value="signal">Strongest signal</option>
-            <option value="days">Longest running</option>
-            <option value="reach">Most reach</option>
-          </select>
-        </label>
+        <FilterSelect id="ad-days" label="Running" value={filters.minDays} options={DAY_OPTIONS} onChange={(minDays) => filter({ minDays })} />
+        <FilterSelect id="ad-media" label="Media" value={filters.media} options={MEDIA_OPTIONS} onChange={(media) => filter({ media })} />
+        <FilterSelect id="ad-versions" label="Versions" value={filters.minVersions} options={VERSION_OPTIONS} onChange={(minVersions) => filter({ minVersions })} />
+        <FilterSelect id="ad-sort" label="Sort" value={filters.sort} options={SORT_OPTIONS} onChange={(sort) => filter({ sort })} />
         <label className="research-filter-check">
-          <input type="checkbox" checked={filters.collapse} onChange={(event) => filter({ collapse: event.target.checked })} />
+          <Checkbox checked={filters.collapse} onCheckedChange={(collapse) => filter({ collapse })} className="research-checkbox" />
           Group copycat pages
         </label>
       </div>}

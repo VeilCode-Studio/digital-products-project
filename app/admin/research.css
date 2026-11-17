@@ -28,10 +28,11 @@
 .admin-shell .research-manual input { border-radius: 12px; height: 46px; }
 .admin-shell .research-finder .form-error { margin: 14px 26px 0; }
 .admin-shell .research-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; padding: 10px 26px 0; }
-.admin-shell .research-filters label { display: grid; gap: 4px; margin: 0; font-size: 11.5px; font-weight: 600; color: var(--ad-soft); }
-.admin-shell .research-filters select { margin: 0; height: 36px; min-width: 128px; padding: 0 30px 0 10px; border-radius: 10px; font-size: 13px; }
-.admin-shell .research-filters .research-filter-check { display: flex; align-items: center; gap: 8px; height: 36px; font-size: 13px; font-weight: 560; color: var(--ad-ink); }
-.admin-shell .research-filter-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--ad-cobalt-deep); }
+.admin-shell .research-filter { display: grid; gap: 4px; }
+.admin-shell .research-filter-label { font-size: 11.5px; font-weight: 600; color: var(--ad-soft); }
+.admin-shell .research-filter-trigger { height: 36px; min-width: 140px; border-radius: 10px; background: #fff; color: var(--ad-ink); font-size: 13px; }
+.admin-shell .research-filter-check { display: flex; align-items: center; gap: 8px; height: 36px; margin: 0; font-size: 13px; font-weight: 560; color: var(--ad-ink); cursor: pointer; }
+.admin-shell .research-checkbox[data-checked] { border-color: var(--ad-cobalt-deep); background: var(--ad-cobalt-deep); color: #fff; }
 .admin-shell .research-count { margin: 14px 26px 0; font-size: 12.5px; color: var(--ad-soft); }
 .admin-shell .research-note { margin: 14px 26px 0; padding: 13px 16px; border-radius: 12px; background: #f6f7fb; color: var(--ad-soft); font-size: 13px; line-height: 1.6; }
 .admin-shell .research-note.warn { background: #fff8eb; color: #7a4d00; border: 1px solid #f4dfb5; }
@@ -138,8 +139,8 @@
 @media (max-width: 700px) {
   .admin-shell .research-tabs, .admin-shell .research-search, .admin-shell .research-manual, .admin-shell .research-filters { padding-left: 18px; padding-right: 18px; }
   .admin-shell .research-count { margin-left: 18px; margin-right: 18px; }
-  .admin-shell .research-filters label:not(.research-filter-check) { flex: 1 1 calc(50% - 7px); }
-  .admin-shell .research-filters select { width: 100%; min-width: 0; }
+  .admin-shell .research-filter { flex: 1 1 calc(50% - 7px); }
+  .admin-shell .research-filter-trigger { width: 100%; min-width: 0; }
   .admin-shell .research-results { padding: 18px 18px 0; grid-template-columns: minmax(0, 1fr); }
   .admin-shell .research-finder { padding-bottom: 20px; }
   .admin-shell .research-note, .admin-shell .research-elsewhere, .admin-shell .research-finder .form-error { margin-left: 18px; margin-right: 18px; }
