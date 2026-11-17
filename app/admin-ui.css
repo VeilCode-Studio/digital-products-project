@@ -173,3 +173,17 @@
 /* View-page links on the product list */
 .catalog-actions { display: flex; gap: 8px; }
 @media (max-width: 600px) { .catalog-actions { width: 100%; } .catalog-actions .button { flex: 1; } }
+
+/* Abandoned checkouts (Orders) */
+.panel-intro { margin: -4px 0 16px; color: var(--muted); font-size: 14px; }
+.abandoned-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.abandoned-row { display: grid; grid-template-columns: minmax(0, 2fr) auto minmax(0, 1.4fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+.abandoned-what { display: grid; gap: 3px; min-width: 0; }
+.abandoned-what strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.abandoned-what span, .abandoned-email { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.abandoned-amount { white-space: nowrap; }
+.empty-state.compact { padding: 28px 16px; }
+@media (max-width: 760px) {
+  .abandoned-row { grid-template-columns: 1fr auto; }
+  .abandoned-email, .abandoned-row .catalog-actions { grid-column: 1 / -1; }
+}

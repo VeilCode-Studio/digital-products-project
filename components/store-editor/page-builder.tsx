@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import { SECTION_LABELS, type IconName, type Media, type Section, type SectionType, type StorePage } from "@/lib/store-page";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { IconPicker, Segmented, StringList, Switch, TextArea, TextField } from "./fields";
+import { IconPicker, NumberField, RatingField, Segmented, StringList, Switch, TextArea, TextField } from "./fields";
 import { MediaField, MediaListField } from "./media";
 import { newSectionData, SECTION_SPECS, SINGLE_SECTIONS, type FieldSpec } from "./section-specs";
 
@@ -87,6 +87,8 @@ export function SpecFields({ fields, value, onChange }: { fields: FieldSpec[]; v
         case "strings": return <StringList key={spec.key} label={spec.label} help={spec.help} max={spec.max} itemMax={spec.itemMax} placeholder={spec.placeholder} values={arr<string>(value[spec.key])} onChange={(next) => set(spec.key, next)} />;
         case "list": return <ItemList key={spec.key} spec={spec} items={arr<Data>(value[spec.key])} onChange={(next) => set(spec.key, next)} />;
         case "table": return <SizeTable key={spec.key} data={value} onChange={onChange} />;
+        case "number": return <NumberField key={spec.key} label={spec.label} help={spec.help} required={spec.required} min={spec.min} max={spec.max} suffix={spec.suffix} value={value[spec.key]} onChange={(next) => set(spec.key, next)} />;
+        case "rating": return <RatingField key={spec.key} label={spec.label} value={value[spec.key]} onChange={(next) => set(spec.key, next)} />;
         case "toggle": return spec === toggles[0] ? <div key={spec.key} className="se-toggle-row">
           {toggles.map((toggle) => <Switch key={toggle.key} label={toggle.label} checked={value[toggle.key] === true} onChange={(next) => set(toggle.key, next)} />)}
         </div> : null;

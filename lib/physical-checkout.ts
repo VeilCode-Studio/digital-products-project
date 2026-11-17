@@ -8,7 +8,7 @@ import { getCatalogProduct } from "./catalog";
 import { bindCheckoutSession, findCheckout } from "./checkout";
 import { paymentContext, stripeOptions } from "./payment-connections";
 import { parseBrand, statementSuffix } from "./store-themes";
-import { parseStorePage, storePageReadiness } from "./store-page";
+import { discountedUnit, offerFor, parseStorePage, storePageReadiness, type QuantityOffer } from "./store-page";
 import { parseStorePolicies, storeReadinessProblems } from "./store-policies";
 import { publicOptions, storefrontMediaBase, variantLabel } from "./storefront";
 import type { AdAttribution, Checkout, PhysicalSnapshot, ProductVariant, ShippingRate } from "./catalog.types";
@@ -70,8 +70,12 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
   if (!checkout) {
     let brand;
     let pageProblems: string[];
+    let offers: QuantityOffer[] = [];
     try {
-      pageProblems = storePageReadiness(parseStorePage(product.page, product.store_id, product.id));
+      const page = parseStorePage(product.page, product.store_id, product.id);
+      pageProblems = storePageReadiness(page);
+      const hero = page.sections.find((section) => section.type === "hero" && section.enabled);
+      if (hero?.type === "hero") offers = hero.data.offers;
       brand = parseBrand(product.brand, product.store_id, product.id);
     } catch {
       throw new HttpError(503, "This store is being updated. Please try again shortly.");
@@ -91,12 +95,16 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     if (siblingError) throw new Error("Could not load variants");
     const order = publicOptions((siblings ?? []) as Pick<ProductVariant, "options">[]).map((option) => option.name);
 
+    // A bundle tier the quantity reaches discounts every unit; the browser's own maths is never trusted.
+    const offer = offerFor(offers, input.quantity);
+    const unitAmount = discountedUnit(variant.price_amount, offer);
     const snapshot: PhysicalSnapshot = {
       brand: { name: brand.name || product.name, supportEmail: brand.supportEmail },
       currency: product.currency,
       items: [{
         productId: product.id, variantId: variant.id, name: product.name, variantLabel: variantLabel(variant.options ?? {}, order),
-        sku: variant.sku, unitAmount: variant.price_amount, quantity: input.quantity, imagePath: variant.image_path,
+        sku: variant.sku, unitAmount, quantity: input.quantity, imagePath: variant.image_path,
+        ...(offer ? { listUnitAmount: variant.price_amount, percentOff: offer.percentOff } : {}),
         supplierUrl: variant.supplier_url, supplierSku: variant.supplier_sku,
       }],
       shippingOptions: rates.map((rate) => ({ rateId: rate.id, name: rate.name, amount: rate.amount, minDays: rate.min_days, maxDays: rate.max_days })),
@@ -106,11 +114,11 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     const reservation = {
       id: input.checkoutId, store_id: STORE_ID, product_id: product.id, product_slug: product.slug, kind: "physical" as const,
       variant_id: variant.id, quantity: input.quantity, physical_snapshot: snapshot,
-      amount: variant.price_amount * input.quantity, currency: product.currency,
+      amount: unitAmount * input.quantity, currency: product.currency,
       stripe_price_id: null, product_snapshot: null, stripe_session_id: null,
       payment_connection_id: context.connectionId, checkout_origin: new URL(getEnv().APP_URL).origin,
-      // Only kept when the store measures ads with a TikTok pixel, and only until the purchase is sent.
-      attribution: brand.tiktokPixelId ? input.attribution ?? null : null,
+      // Only kept when the store measures ads with a pixel, and only until the purchase is sent.
+      attribution: brand.tiktokPixelId || brand.metaPixelId ? input.attribution ?? null : null,
     };
     const { data, error } = await getSupabase().from("checkouts").insert(reservation).select("*").single();
     if (error && error.code !== "23505") throw new Error("Could not reserve checkout");
@@ -134,7 +142,7 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
         currency: snapshot.currency, unit_amount: item.unitAmount,
         product_data: {
           name: item.name,
-          ...(item.variantLabel ? { description: item.variantLabel } : {}),
+          ...(item.variantLabel || item.percentOff ? { description: [item.variantLabel, item.percentOff ? `Bundle of ${item.quantity}: ${item.percentOff}% off each` : ""].filter(Boolean).join(" · ") } : {}),
           ...(image ? { images: [image] } : {}),
           metadata: { product_id: item.productId, variant_id: item.variantId },
         },
@@ -155,6 +163,10 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
       submit: { message: "You'll get an order confirmation by email, and a tracking link once your order ships." },
     },
     ...(suffix ? { payment_intent_data: { statement_descriptor_suffix: suffix } } : {}),
+    // An unpaid session expires after 24 hours; Stripe then offers a recovery link for 30 days, and the
+    // shopper can tick "keep me updated" so the store may email it (lib/abandoned.ts).
+    after_expiration: { recovery: { enabled: true, allow_promotion_codes: false } },
+    consent_collection: { promotions: "auto" },
     client_reference_id: checkout.id,
     metadata: { app: "veilcode-store", kind: "physical", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
     // The reference lets the thank-you page report this purchase to the store's ad pixel.

@@ -23,10 +23,15 @@ export type Tone = "plain" | "soft" | "accent";
 /** Bento: how many cells a tile spans. Masonry: the tile's shape (small 1:1, wide 4:3, tall 3:4, large 4:5). */
 export type TileSize = "small" | "wide" | "tall" | "large";
 export type BentoTile = { size: TileSize; media: Media | null; icon: IconName | null; title: string; text: string; tone: Tone };
+/** A review a real customer gave, entered by the owner. Ratings are whole stars from 1 to 5. */
+export type Review = { name: string; location: string; rating: number; title: string; text: string; media: Media | null };
+/** Quantity pricing on the hero: buying at least `quantity` takes `percentOff` off every unit. */
+export type QuantityOffer = { quantity: number; percentOff: number; label: string };
+export const MAX_OFFER_QUANTITY = 10;
 
 type SectionData = {
   announcement: { text: string };
-  hero: { headline: string; subheadline: string; media: Media[]; highlights: string[]; badges: string[] };
+  hero: { headline: string; subheadline: string; media: Media[]; highlights: string[]; badges: string[]; offers: QuantityOffer[] };
   showcase: { eyebrow: string; headline: string; text: string; media: Media | null; layout: "split" | "centered"; tone: Tone; watermark: string; buttonLabel: string };
   benefits: { title: string; layout: "grid" | "spotlight"; media: Media | null; items: { icon: IconName; title: string; text: string }[] };
   features: { items: { eyebrow: string; title: string; text: string; media: Media | null }[] };
@@ -38,7 +43,7 @@ type SectionData = {
   comparison: { title: string; ourLabel: string; theirLabel: string; rows: { feature: string; ours: boolean; theirs: boolean }[] };
   size_guide: { title: string; note: string; columns: string[]; rows: string[][] };
   specs: { title: string; rows: { label: string; value: string }[] };
-  reviews: { title: string };
+  reviews: { title: string; items: Review[] };
   guarantee: { title: string; text: string };
   faq: { title: string; items: { question: string; answer: string }[] };
   final_cta: { headline: string; text: string };
@@ -51,7 +56,7 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   announcement: "Announcement bar", hero: "Hero and buy box", showcase: "Showcase banner", benefits: "Benefits",
   features: "Feature blocks", image_banner: "Image banner", bento: "Bento or masonry grid", statement: "Statement or quote",
   video_strip: "Video strip", how_it_works: "How it works", comparison: "Comparison", size_guide: "Size guide",
-  specs: "Specs or ingredients", reviews: "Verified reviews", guarantee: "Guarantee and shipping", faq: "FAQ",
+  specs: "Specs or ingredients", reviews: "Customer reviews", guarantee: "Guarantee and shipping", faq: "FAQ",
   final_cta: "Final call to action",
 };
 /** Sections that may appear at most once, and the hero, which every page needs. */
@@ -83,6 +88,11 @@ function list<T>(value: unknown, path: string, max: number, item: (entry: unknow
   return value.map((entry, index) => item(entry, `${path}[${index}]`));
 }
 function bool(value: unknown) { return value === true; }
+function whole(value: unknown, path: string, min: number, max: number) {
+  const number = typeof value === "string" && value.trim() ? Number(value) : value;
+  if (typeof number !== "number" || !Number.isInteger(number) || number < min || number > max) fail(path, `must be a whole number from ${min} to ${max}`);
+  return number;
+}
 function choice<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
   return options.includes(value as T) ? value as T : fallback;
 }
@@ -115,6 +125,7 @@ function parseData(type: SectionType, raw: Record<string, unknown>, path: string
       media: list(raw.media, `${path}.media`, 12, (entry, p) => media(entry, p, prefix)),
       highlights: list(raw.highlights, `${path}.highlights`, 6, (entry, p) => text(entry, p, 90, true)),
       badges: list(raw.badges, `${path}.badges`, 4, (entry, p) => text(entry, p, 40, true)),
+      offers: quantityOffers(raw.offers, `${path}.offers`),
     };
     case "showcase": return {
       eyebrow: text(raw.eyebrow, `${path}.eyebrow`, 60), headline: text(raw.headline, `${path}.headline`, 120, true),
@@ -201,7 +212,17 @@ function parseData(type: SectionType, raw: Record<string, unknown>, path: string
         return { label: text(item.label, `${p}.label`, 60, true), value: text(item.value, `${p}.value`, 300, true) };
       }),
     };
-    case "reviews": return { title: text(raw.title, `${path}.title`, 100) };
+    case "reviews": return {
+      title: text(raw.title, `${path}.title`, 100),
+      items: list(raw.items, `${path}.items`, 30, (entry, p) => {
+        const item = object(entry, p);
+        return {
+          name: text(item.name, `${p}.name`, 60, true), location: text(item.location, `${p}.location`, 60),
+          rating: whole(item.rating ?? 5, `${p}.rating`, 1, 5), title: text(item.title, `${p}.title`, 90),
+          text: text(item.text, `${p}.text`, 800, true), media: item.media ? media(item.media, `${p}.media`, prefix, ["image"]) : null,
+        };
+      }),
+    };
     case "guarantee": return { title: text(raw.title, `${path}.title`, 100, true), text: text(raw.text, `${path}.text`, 600) };
     case "faq": return {
       title: text(raw.title, `${path}.title`, 100),
@@ -212,6 +233,31 @@ function parseData(type: SectionType, raw: Record<string, unknown>, path: string
     };
     case "final_cta": return { headline: text(raw.headline, `${path}.headline`, 120, true), text: text(raw.text, `${path}.text`, 300) };
   }
+}
+
+/** Up to three tiers, each for a larger quantity and a bigger discount than the one before. */
+function quantityOffers(value: unknown, path: string): QuantityOffer[] {
+  const offers = list(value, path, 3, (entry, p) => {
+    const item = object(entry, p);
+    return {
+      quantity: whole(item.quantity, `${p}.quantity`, 2, MAX_OFFER_QUANTITY), percentOff: whole(item.percentOff, `${p}.percentOff`, 1, 50),
+      label: text(item.label, `${p}.label`, 40),
+    };
+  });
+  offers.forEach((offer, index) => {
+    const before = offers[index - 1];
+    if (before && (offer.quantity <= before.quantity || offer.percentOff <= before.percentOff)) fail(`${path}[${index}]`, "must be for more items and a bigger discount than the tier above");
+  });
+  return offers;
+}
+
+/** The discount for buying `quantity`: the best tier the quantity reaches, or none. */
+export function offerFor(offers: readonly QuantityOffer[], quantity: number) {
+  return [...offers].reverse().find((offer) => quantity >= offer.quantity) ?? null;
+}
+/** The unit price after a quantity discount, rounded to the cent. */
+export function discountedUnit(unitAmount: number, offer: QuantityOffer | null) {
+  return offer ? Math.round(unitAmount * (100 - offer.percentOff) / 100) : unitAmount;
 }
 
 /** Validates and normalises a stored or submitted page. Throws StorePageError with a readable path. */
@@ -250,13 +296,13 @@ export function starterStorePage(): StorePage {
     version: STORE_PAGE_VERSION,
     sections: [
       { id: "announcement", type: "announcement", enabled: true, data: { text: "Free shipping on every US order" } },
-      { id: "hero", type: "hero", enabled: true, data: { headline: "", subheadline: "", media: [], highlights: [], badges: ["Free US shipping", "30-day returns", "Secure checkout"] } },
+      { id: "hero", type: "hero", enabled: true, data: { headline: "", subheadline: "", media: [], highlights: [], badges: ["Free US shipping", "30-day returns", "Secure checkout"], offers: [] } },
       { id: "benefits", type: "benefits", enabled: true, data: { title: "Why you'll love it", layout: "grid", media: null, items: [] } },
       { id: "features", type: "features", enabled: true, data: { items: [] } },
       { id: "how-it-works", type: "how_it_works", enabled: false, data: { title: "How it works", steps: [] } },
       { id: "comparison", type: "comparison", enabled: false, data: { title: "Why it's different", ourLabel: "Ours", theirLabel: "Others", rows: [] } },
       { id: "specs", type: "specs", enabled: false, data: { title: "Specifications", rows: [] } },
-      { id: "reviews", type: "reviews", enabled: true, data: { title: "What customers say" } },
+      { id: "reviews", type: "reviews", enabled: true, data: { title: "What customers say", items: [] } },
       { id: "guarantee", type: "guarantee", enabled: true, data: { title: "Shipping and returns", text: "" } },
       { id: "faq", type: "faq", enabled: true, data: { title: "Questions, answered", items: [] } },
       { id: "final-cta", type: "final_cta", enabled: true, data: { headline: "Ready when you are", text: "" } },

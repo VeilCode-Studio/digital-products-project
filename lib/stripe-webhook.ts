@@ -11,6 +11,7 @@ import type { DeliveryProduct } from "@/lib/catalog.types";
 import { findAccountConnection, refreshConnection, stripeLivemode } from "./payment-connections";
 import { getSupabase } from "./supabase";
 import { recordPhysicalOrder } from "./physical-orders";
+import { adoptRecoveredSession, recordExpiredSession } from "./abandoned";
 
 export async function handleStripeWebhook(req: Request, connected = false) {
   const env = getEnv();
@@ -47,10 +48,17 @@ export async function handleStripeWebhook(req: Request, connected = false) {
       }
     } catch { return Response.json({ error: "Payment account update failed" }, { status: 500 }); }
   }
+  if (event.type === "checkout.session.expired") {
+    // An unpaid cart: keep Stripe's recovery link so the owner can follow up (lib/abandoned.ts).
+    try { await recordExpiredSession(event.data.object, connection?.store_id); } catch {
+      return Response.json({ error: "Could not record the expired checkout" }, { status: 500 });
+    }
+    return Response.json({ received: true });
+  }
   if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_succeeded") {
     return Response.json({ received: true });
   }
-  const session = event.data.object;
+  let session = event.data.object;
   if (session.payment_status !== "paid") return Response.json({ received: true });
   const email = session.customer_details?.email;
   if (!email) {
@@ -60,6 +68,15 @@ export async function handleStripeWebhook(req: Request, connected = false) {
   try {
     let productId: string;
     let productSnapshot: DeliveryProduct | undefined;
+    // Paid through a recovery link: a new session for the same reservation takes it over first. Stripe
+    // may not copy our reference onto it, so it is restored from the reservation it recovered.
+    const recovered = await adoptRecoveredSession(session, connection?.store_id);
+    if (recovered) {
+      session = {
+        ...session, client_reference_id: recovered.id,
+        metadata: { app: "veilcode-store", ...(recovered.kind === "physical" ? { kind: "physical" } : {}), checkout_id: recovered.id, product_id: recovered.product_id, store_id: recovered.store_id, ...session.metadata },
+      };
+    }
     if (session.metadata?.app === "veilcode-store" && session.metadata.checkout_id) {
       const checkout = await findCheckout(session.metadata.checkout_id, connection?.store_id);
       if (!checkout || !validCheckoutSession(session, checkout) ||

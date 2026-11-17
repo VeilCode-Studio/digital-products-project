@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { getStorefront, type Storefront } from "@/lib/storefront";
 import { ProductHero } from "@/components/storefront/product-hero";
-import { StoreSection } from "@/components/storefront/sections";
+import { reviewSummary, StoreSection } from "@/components/storefront/sections";
 import { StoreFrame } from "@/components/storefront/store-frame";
-import { TikTokEvent } from "@/components/storefront/tiktok";
+import { AdEvent } from "@/components/storefront/tiktok";
 import "./storefront.css";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,10 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 // Shared by generateMetadata and the page so a request loads the store once.
-const loadStore = cache((slug: string, preview: boolean) => getStorefront(slug, { preview }));
+const loadStore = cache((slug: string, preview: boolean, unsaved: boolean) => getStorefront(slug, { preview, unsaved }));
 async function load({ params, searchParams }: Params) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
-  return { store: await loadStore(slug, query.preview === "1"), query };
+  return { store: await loadStore(slug, query.preview === "1", query.preview === "1" && query.draft === "1"), query };
 }
 
 function heroOf(store: Storefront) {
@@ -68,16 +68,19 @@ export default async function StorePage(props: Params) {
   const priceLabel = `${variesInPrice ? "from " : ""}${money(lowest, store.product.currency)}`;
   const ctx = { mediaBase: store.mediaBase, productName: store.product.name, currency: store.product.currency, shipping: store.shipping, priceLabel };
   const has = (type: string) => sections.some((section) => section.type === type);
+  const reviews = sections.find((section) => section.type === "reviews");
+  const rating = reviews?.type === "reviews" && reviews.data.items.length ? reviewSummary(reviews.data.items) : null;
   const nav = [
     has("features") || has("benefits") ? { href: `#${sections.find((section) => section.type === "features" || section.type === "benefits")!.id}`, label: "Features" } : null,
     has("specs") ? { href: `#${sections.find((section) => section.type === "specs")!.id}`, label: "Details" } : null,
     has("guarantee") ? { href: `#${sections.find((section) => section.type === "guarantee")!.id}`, label: "Shipping" } : null,
+    rating ? { href: "#reviews", label: "Reviews" } : null,
     has("faq") ? { href: `#${sections.find((section) => section.type === "faq")!.id}`, label: "FAQ" } : null,
   ].filter((item): item is { href: string; label: string } => item !== null);
 
   return (
     <StoreFrame store={store} nav={nav} announcement={announcement?.type === "announcement" ? announcement.data.text : undefined} onStorePage>
-      {store.brand.tiktokPixelId && <TikTokEvent event="ViewContent" params={{
+      {(store.brand.tiktokPixelId || store.brand.metaPixelId) && <AdEvent event="ViewContent" params={{
         content_type: "product", content_id: store.product.id, content_name: store.product.name, currency: store.product.currency.toUpperCase(), value: lowest / 100,
       }} />}
       <main id="top">
@@ -85,7 +88,7 @@ export default async function StorePage(props: Params) {
         {sections.map((section) => section.type === "hero"
           ? <ProductHero key={section.id} productId={store.product.id} name={store.product.name} tagline={store.product.tagline}
               headline={section.data.headline} subheadline={section.data.subheadline} media={section.data.media}
-              highlights={section.data.highlights} badges={section.data.badges} variants={store.variants} options={store.options}
+              highlights={section.data.highlights} badges={section.data.badges} offers={section.data.offers} rating={rating} variants={store.variants} options={store.options}
               shipping={store.shipping} currency={store.product.currency} mediaBase={store.mediaBase} draft={store.product.draft} />
           : <StoreSection key={section.id} section={section} ctx={ctx} />)}
       </main>

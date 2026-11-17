@@ -14,7 +14,8 @@ import {
 import { findPoster, formatBytes, isGeneratedPoster, mediaExtension, mediaKind, mediaUploadProblem, posterPathFor, sniffMedia, STORE_MEDIA_TYPES, type StoreMediaExtension, type StoreMediaFile } from "./store-media";
 import { storefrontMediaBase } from "./storefront";
 import { pixelsWithServerEvents } from "./tiktok";
-import type { CatalogProduct, ProductVariant, ShippingProfile, ShippingRate } from "./catalog.types";
+import { metaPixelsWithServerEvents } from "./meta";
+import type { CatalogProduct, ProductVariant, ShippingProfile, ShippingRate, StorePreviewDraft } from "./catalog.types";
 
 // The admin editor for physical single-product stores. Every value is validated here before it is
 // written; a save goes through one database transaction (save_physical_store), so the product and
@@ -38,6 +39,8 @@ export type StoreEditorData = {
   mediaBase: string;
   /** TikTok pixels with a server access token configured, so purchases are also sent from the server. */
   tiktokServerPixels: string[];
+  /** The same for Meta pixels (Conversions API). */
+  metaServerPixels: string[];
 };
 
 const conflict = () => new HttpError(409, "This store was changed in another tab or window. Reload to get the latest version, then make your change again.");
@@ -88,7 +91,7 @@ export async function loadStoreEditor(id: string): Promise<StoreEditorData> {
     pageProblem = error instanceof StorePageError ? error.message : "The saved page could not be read.";
   }
   let brand: Brand;
-  try { brand = parseBrand(product.brand, STORE_ID, product.id); } catch { brand = { name: "", logoPath: null, accent: null, supportEmail: null, tiktokPixelId: null }; }
+  try { brand = parseBrand(product.brand, STORE_ID, product.id); } catch { brand = { name: "", logoPath: null, accent: null, supportEmail: null, tiktokPixelId: null, metaPixelId: null }; }
   const users = (products.data ?? []) as Pick<CatalogProduct, "id" | "name" | "shipping_profile_id">[];
   const allRates = (rates.data ?? []) as ShippingRate[];
 
@@ -113,6 +116,7 @@ export async function loadStoreEditor(id: string): Promise<StoreEditorData> {
     media,
     mediaBase: storefrontMediaBase(),
     tiktokServerPixels: pixelsWithServerEvents(),
+    metaServerPixels: metaPixelsWithServerEvents(),
   };
 }
 
@@ -148,6 +152,63 @@ export async function createStore(raw: Record<string, unknown>) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * Copies a store into a new draft to test another product or angle: page, brand, policies, shipping
+ * profile and variants, with every media file copied into the new store's own folder.
+ */
+export async function duplicateStore(raw: Record<string, unknown>) {
+  const source = await loadPhysical(raw.id);
+  const db = getSupabase();
+  const id = randomUUID();
+  const from = mediaPrefix(STORE_ID, source.id);
+  const to = mediaPrefix(STORE_ID, id);
+
+  const { data: variants, error: variantError } = await db.from("product_variants").select("*").eq("store_id", STORE_ID).eq("product_id", source.id).order("position");
+  if (variantError) throw new Error("Could not load variants");
+
+  // Every file in the media library, plus anything the store uses outside it (a logo).
+  const storage = db.storage.from(BUCKET);
+  const { data: listed, error: listError } = await storage.list(mediaFolder(source.id).slice(0, -1), { limit: 1000 });
+  if (listError) throw new HttpError(503, "Could not read the store's media. Please try again.");
+  const files = new Set(((listed ?? []) as { id: string | null; name: string }[]).filter((file) => file.id && mediaExtension(file.name)).map((file) => mediaFolder(source.id) + file.name));
+  // The prefix is "<store uuid>/<product id>/": letters, digits, hyphens and slashes, none special in a pattern.
+  const used = JSON.stringify([source.page, source.brand, variants]).match(new RegExp(`${from}[A-Za-z0-9/_.-]+`, "g")) ?? [];
+  for (const path of used) if (!path.includes("..")) files.add(path);
+  for (const path of files) {
+    const { error } = await storage.copy(path, to + path.slice(from.length));
+    // A file the store points at but that is already gone is skipped; anything else stops the copy.
+    if (error && !/not.?found/i.test(error.message ?? "")) throw new HttpError(503, "Could not copy the store's media. Please try again.");
+  }
+  const moved = <T,>(value: T): T => JSON.parse(JSON.stringify(value ?? null).split(from).join(to));
+
+  const base = `${source.slug.slice(0, MAX_SLUG - 8)}-copy`;
+  const { data: taken, error: slugError } = await db.from("products").select("slug").eq("store_id", STORE_ID);
+  if (slugError) throw new Error("Could not check store URLs");
+  const slugs = new Set(((taken ?? []) as { slug: string }[]).map((row) => row.slug));
+  let slug = base;
+  for (let n = 2; slugs.has(slug); n++) slug = `${base}-${n}`;
+
+  const { error } = await db.from("products").insert({
+    id, store_id: STORE_ID, slug, name: `${source.name.slice(0, 112)} (copy)`, tagline: source.tagline, kind: "physical", status: "draft",
+    currency: source.currency, theme: source.theme, brand: moved(source.brand), page: moved(source.page), policies: source.policies ?? {},
+    shipping_profile_id: source.shipping_profile_id,
+  });
+  if (error) throw error.code === "23505" ? new HttpError(409, "That store URL is already in use. Please try again.") : new HttpError(500, "Could not copy the store. Please try again.");
+  const copies = ((variants ?? []) as ProductVariant[]).map((variant) => ({
+    id: randomUUID(), store_id: STORE_ID, product_id: id, position: variant.position, options: variant.options, sku: variant.sku,
+    price_amount: variant.price_amount, compare_at_amount: variant.compare_at_amount, image_path: moved(variant.image_path), active: variant.active,
+    supplier_url: variant.supplier_url, supplier_sku: variant.supplier_sku,
+  }));
+  if (copies.length) {
+    const { error: copyError } = await db.from("product_variants").insert(copies as never);
+    if (copyError) {
+      await db.from("products").delete().eq("store_id", STORE_ID).eq("id", id);
+      throw new HttpError(500, "Could not copy the store's variants. Please try again.");
+    }
+  }
+  return { id, slug };
+}
+
 export async function saveStore(raw: Record<string, unknown>) {
   const product = await loadPhysical(raw.id);
   const revision = raw.revision;
@@ -175,8 +236,9 @@ export async function saveStore(raw: Record<string, unknown>) {
     profiles = submitted.map(parseShippingProfile);
     policies = policiesForSave(raw.policies, product.policies, today(), publishing);
     // Adding or removing a pixel changes what the privacy policy says, so it changes its date too.
-    const previousPixel = (product.brand as { tiktokPixelId?: unknown }).tiktokPixelId ?? null;
-    if (brand.tiktokPixelId !== previousPixel && "version" in policies) policies = { ...policies, updatedAt: today() };
+    const previous = product.brand as { tiktokPixelId?: unknown; metaPixelId?: unknown };
+    const pixelsChanged = brand.tiktokPixelId !== (previous.tiktokPixelId ?? null) || brand.metaPixelId !== (previous.metaPixelId ?? null);
+    if (pixelsChanged && "version" in policies) policies = { ...policies, updatedAt: today() };
   } catch (error) {
     if (error instanceof StoreInputError || error instanceof StorePageError || error instanceof BrandError) throw new HttpError(400, error.message);
     if (error instanceof PoliciesError) throw new HttpError(400, `Policies: ${error.message}`);
@@ -227,6 +289,36 @@ export async function saveStore(raw: Record<string, unknown>) {
     throw new HttpError(500, "Could not save the store. Your changes are still in the editor; please try again.");
   }
   return { revision: data as number, slug, status, policies };
+}
+
+/**
+ * Keeps the editor's unsaved draft for the owner's live preview (/s/<slug>?preview=1&draft=1). It is
+ * validated exactly like a save, but only the preview reads it: the saved store, checkout and visitors
+ * are untouched.
+ */
+export async function saveStorePreview(raw: Record<string, unknown>) {
+  const product = await loadPhysical(raw.id);
+  const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 120) : product.name;
+  const tagline = typeof raw.tagline === "string" ? raw.tagline.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 200) : "";
+  const theme = (THEMES as readonly string[]).includes(raw.theme as string) ? raw.theme as ThemeId : (product.theme as ThemeId);
+  let preview: StorePreviewDraft;
+  try {
+    const brand = parseBrand(raw.brand, STORE_ID, product.id);
+    brand.logoPath = storeImagePath(brand.logoPath, STORE_ID, product.id, "Logo");
+    const page = parseStorePage(raw.page, STORE_ID, product.id);
+    const variants = parseVariants(raw.variants, STORE_ID, product.id).filter((variant) => variant.active);
+    preview = {
+      name, tagline, theme, brand, page,
+      variants: variants.map((variant) => ({ id: variant.id, options: variant.options, price_amount: variant.price_amount, compare_at_amount: variant.compare_at_amount, image_path: variant.image_path })),
+    };
+  } catch (error) {
+    if (error instanceof StoreInputError || error instanceof StorePageError || error instanceof BrandError) throw new HttpError(400, error.message);
+    throw error;
+  }
+  const { error } = await getSupabase().from("products").update({ preview_draft: preview, preview_updated_at: new Date().toISOString() })
+    .eq("store_id", STORE_ID).eq("id", product.id);
+  if (error) throw new HttpError(503, "Could not update the preview.");
+  return { ok: true };
 }
 
 // ── Media ─────────────────────────────────────────────────────────────────────────────────────

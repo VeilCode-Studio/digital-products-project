@@ -53,6 +53,7 @@ describe("ad attribution", () => {
   it("reads TikTok identifiers from the checkout request, and nothing after an opt-out", () => {
     expect(attributionFrom(checkoutRequest(randomUUID()))).toEqual({
       ttclid: "E.C.P.abc123", ttp: "2abcTTPcookie", ip: "203.0.113.7", userAgent: "Mozilla/5.0 Test", url: "https://delivery.example.com/s/glow?ttclid=E.C.P.abc",
+      fbc: null, fbp: null,
     });
     expect(attributionFrom(checkoutRequest(randomUUID(), { "sec-gpc": "1" }))).toBeNull();
     expect(attributionFrom(checkoutRequest(randomUUID(), { cookie: "st_ads_optout=1; _ttp=x" }))).toBeNull();
@@ -144,7 +145,7 @@ describe("pixel and privacy policy", () => {
       refundDays: 5, lostParcelDays: 14, responseTime: "", governingLaw: "England and Wales", extra: {}, updatedAt: "2026-11-13",
     });
     const ctx = { brand: "Lumora", productName: "Glow Lamp", supportEmail: "help@lumora.example", currency: "usd", rates: [], policies };
-    const text = (adTracking: boolean) => buildPolicy("privacy", { ...ctx, adTracking }).sections.flatMap((section) => section.paragraphs).join("\n");
+    const text = (adTracking: boolean) => buildPolicy("privacy", { ...ctx, adPlatforms: adTracking ? ["TikTok"] : [] }).sections.flatMap((section) => section.paragraphs).join("\n");
     expect(text(true)).toContain("TikTok pixel");
     expect(text(true)).toContain("Global Privacy Control");
     expect(text(true)).toContain("“sharing”");

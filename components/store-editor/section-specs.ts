@@ -15,6 +15,8 @@ export type FieldSpec = Base & (
   | { kind: "strings"; max: number; itemMax: number; placeholder?: string }
   | { kind: "list"; itemLabel: string; max: number; fields: FieldSpec[]; create: () => Record<string, unknown>; summary: (item: Record<string, unknown>) => string }
   | { kind: "toggle" }
+  | { kind: "number"; min: number; max: number; suffix?: string; required?: boolean }
+  | { kind: "rating" }
   | { kind: "table" }
 );
 
@@ -35,6 +37,14 @@ export const SECTION_SPECS: Record<SectionType, { description: string; fields: F
     { kind: "textarea", key: "subheadline", label: "Short description", max: 300, rows: 3 },
     { kind: "strings", key: "highlights", label: "Highlights", max: 6, itemMax: 90, placeholder: "12 colour modes and a sleep timer", help: "Shown as a checklist beside the price." },
     { kind: "strings", key: "badges", label: "Trust badges", max: 4, itemMax: 40, placeholder: "30-day returns", help: "Short promises under the buy button. Only promise what your policies say." },
+    { kind: "list", key: "offers", label: "Quantity offers", itemLabel: "Offer", max: 3,
+      help: "Shoppers pick a bundle above the buy button; every unit in it is discounted. Each tier needs more items and a bigger discount than the one before. Checkout charges the discounted price.",
+      create: () => ({ quantity: 2, percentOff: 10, label: "" }),
+      summary: (item) => `Buy ${String(item.quantity ?? "?")}, save ${String(item.percentOff ?? "?")}%${text(item, "label") ? ` · ${text(item, "label")}` : ""}`, fields: [
+        { kind: "number", key: "quantity", label: "Items", min: 2, max: 10, required: true },
+        { kind: "number", key: "percentOff", label: "Discount on each item", min: 1, max: 50, suffix: "%", required: true },
+        { kind: "text", key: "label", label: "Tag", max: 40, placeholder: "Most popular", help: "Optional: a short tag on this bundle." },
+      ] },
   ] },
   showcase: { description: "A bold banner with a headline, image and an optional buy button.", fields: [
     { kind: "text", key: "eyebrow", label: "Eyebrow", max: 60, placeholder: "Night mode, upgraded" },
@@ -124,8 +134,19 @@ export const SECTION_SPECS: Record<SectionType, { description: string; fields: F
       { kind: "text", key: "value", label: "Value", max: 300, required: true, placeholder: "USB-C, 5V / 2A" },
     ] },
   ] },
-  reviews: { description: "Verified reviews from real buyers. Hidden until your first review arrives.", fields: [
+  reviews: { description: "Reviews your customers gave you, with an average rating that also shows beside the price. Hidden until you add one.", fields: [
     { kind: "text", key: "title", label: "Title", max: 100 },
+    { kind: "list", key: "items", label: "Reviews", itemLabel: "Review", max: 30,
+      help: "Only add reviews real customers wrote, word for word. Invented, paid-for or edited reviews are illegal in the US (FTC rule on fake reviews) and can be fined.",
+      create: () => ({ name: "", location: "", rating: 5, title: "", text: "", media: null }),
+      summary: (item) => [`${"★".repeat(Number(item.rating) || 0)}`, text(item, "name")].filter(Boolean).join(" "), fields: [
+        { kind: "rating", key: "rating", label: "Rating" },
+        { kind: "text", key: "name", label: "Customer name", max: 60, required: true, placeholder: "Maya R.", help: "First name and last initial is plenty." },
+        { kind: "text", key: "location", label: "Location", max: 60, placeholder: "Austin, TX" },
+        { kind: "text", key: "title", label: "Headline", max: 90, placeholder: "Bedtime is fun again" },
+        { kind: "textarea", key: "text", label: "Review", max: 800, required: true, rows: 4 },
+        { kind: "media", key: "media", label: "Customer photo", accept: IMAGE, help: "Optional. Only with the customer's permission." },
+      ] },
   ] },
   guarantee: { description: "Your shipping and returns promise, with the live shipping options listed under it.", fields: [
     { kind: "text", key: "title", label: "Title", max: 100, required: true },
@@ -148,7 +169,7 @@ export const SECTION_SPECS: Record<SectionType, { description: string; fields: F
 export function newSectionData(type: SectionType): Section["data"] {
   switch (type) {
     case "announcement": return { text: "" };
-    case "hero": return { headline: "", subheadline: "", media: [], highlights: [], badges: [] };
+    case "hero": return { headline: "", subheadline: "", media: [], highlights: [], badges: [], offers: [] };
     case "showcase": return { eyebrow: "", headline: "", text: "", media: null, layout: "split", tone: "soft", watermark: "", buttonLabel: "" };
     case "benefits": return { title: "Why you'll love it", layout: "grid", media: null, items: [] };
     case "features": return { items: [] };
@@ -160,7 +181,7 @@ export function newSectionData(type: SectionType): Section["data"] {
     case "comparison": return { title: "Why it's different", ourLabel: "Ours", theirLabel: "Others", rows: [] };
     case "size_guide": return { title: "Size guide", note: "", columns: ["Size", "Chest (in)", "Length (in)"], rows: [] };
     case "specs": return { title: "Specifications", rows: [] };
-    case "reviews": return { title: "What customers say" };
+    case "reviews": return { title: "What customers say", items: [] };
     case "guarantee": return { title: "Shipping and returns", text: "" };
     case "faq": return { title: "Questions, answered", items: [] };
     case "final_cta": return { headline: "Ready when you are", text: "" };

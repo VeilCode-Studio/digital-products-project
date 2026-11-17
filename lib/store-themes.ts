@@ -43,6 +43,8 @@ export type Brand = {
   name: string; logoPath: string | null; accent: string | null; supportEmail: string | null;
   /** TikTok pixel for ads measurement; see lib/tiktok.ts. */
   tiktokPixelId: string | null;
+  /** Meta (Facebook/Instagram) pixel for ads measurement; see lib/meta.ts. */
+  metaPixelId: string | null;
 };
 
 export class BrandError extends Error {}
@@ -62,7 +64,14 @@ export function parseBrand(value: unknown, storeId: string, productId: string): 
   if (supportEmail && (supportEmail.length > 254 || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(supportEmail))) throw new BrandError("Enter a valid brand support email.");
   const tiktokPixelId = typeof raw.tiktokPixelId === "string" && raw.tiktokPixelId.trim() ? raw.tiktokPixelId.trim().toUpperCase() : null;
   if (tiktokPixelId && !/^[A-Z0-9]{10,32}$/.test(tiktokPixelId)) throw new BrandError("The TikTok pixel ID is the code of letters and numbers shown in TikTok Events Manager, like C4ABCD1234EFGH5678IJ.");
-  return { name, logoPath, accent, supportEmail, tiktokPixelId };
+  const metaPixelId = typeof raw.metaPixelId === "string" && raw.metaPixelId.trim() ? raw.metaPixelId.replace(/\s/g, "") : null;
+  if (metaPixelId && !/^\d{10,20}$/.test(metaPixelId)) throw new BrandError("The Meta pixel ID is the number shown in Meta Events Manager under Data sources, like 1234567890123456.");
+  return { name, logoPath, accent, supportEmail, tiktokPixelId, metaPixelId };
+}
+
+/** The ad platforms a store measures with, in the words policies and notices use. */
+export function adPlatforms(brand: Pick<Brand, "tiktokPixelId" | "metaPixelId">) {
+  return [brand.tiktokPixelId ? "TikTok" : null, brand.metaPixelId ? "Meta" : null].filter((name): name is string => name !== null);
 }
 
 /** Card statements show the account prefix plus this suffix; keep it short and plain. */

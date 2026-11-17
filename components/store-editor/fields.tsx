@@ -97,3 +97,32 @@ export function IconPicker({ label, value, optional, onChange }: { label: string
     </div>
   </div>;
 }
+
+/** A whole number. Empty or invalid input is kept as typed so the field never fights the owner. */
+export function NumberField({ label, help, required, value, onChange, min, max, suffix }: Common & {
+  value: unknown; onChange: (value: number | string) => void; min: number; max: number; suffix?: string;
+}) {
+  const id = useId();
+  const shown = typeof value === "number" ? String(value) : typeof value === "string" ? value : "";
+  const input = <input id={id} type="number" inputMode="numeric" min={min} max={max} step={1} value={shown} required={required}
+    aria-describedby={help ? `${id}-help` : undefined}
+    onChange={(event) => { const next = event.target.value; onChange(/^\d+$/.test(next) ? Number(next) : next); }} />;
+  return <div className="se-field">
+    <Label label={label} required={required} htmlFor={id} />
+    {suffix ? <div className="input-suffix">{input}<span>{suffix}</span></div> : input}
+    {help && <span className="field-help" id={`${id}-help`}>{help}</span>}
+  </div>;
+}
+
+/** One to five stars, as a radio group. */
+export function RatingField({ label, value, onChange }: { label: string; value: unknown; onChange: (value: number) => void }) {
+  const id = useId();
+  const rating = typeof value === "number" ? value : 5;
+  return <div className="se-field" role="radiogroup" aria-labelledby={id}>
+    <span className="se-label"><span className="se-label-text" id={id}>{label}</span><span className="optional">{rating} of 5</span></span>
+    <div className="se-rating">
+      {[1, 2, 3, 4, 5].map((star) => <button key={star} type="button" role="radio" aria-checked={rating === star} aria-label={`${star} star${star === 1 ? "" : "s"}`}
+        className={star <= rating ? "is-on" : ""} onClick={() => onChange(star)}>★</button>)}
+    </div>
+  </div>;
+}

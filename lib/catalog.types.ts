@@ -27,6 +27,12 @@ export type CatalogProduct = {
   policies?: Record<string, unknown>;
   /** Digital products suggested under this one's page, in order (lib/related-products.ts). */
   related_ids?: string[];
+  /** The store editor's unsaved draft, shown only in the owner's live preview (lib/manage-stores.ts). */
+  preview_draft?: StorePreviewDraft | null; preview_updated_at?: string | null;
+};
+export type StorePreviewDraft = {
+  name: string; tagline: string; theme: string; brand: Record<string, unknown>; page: Record<string, unknown>;
+  variants: { id: string; options: Record<string, string>; price_amount: number; compare_at_amount: number | null; image_path: string | null }[];
 };
 export type ProductVariant = {
   id: string; store_id: string; product_id: string; position: number;
@@ -49,6 +55,8 @@ export type PhysicalSnapshot = {
     productId: string; variantId: string; name: string; variantLabel: string; sku: string | null;
     unitAmount: number; quantity: number; imagePath: string | null;
     supplierUrl: string | null; supplierSku: string | null;
+    /** Set when a bundle offer applied: the price before the discount, and the discount on each unit. */
+    listUnitAmount?: number; percentOff?: number;
   }[];
   shippingOptions: { rateId: string; name: string; amount: number; minDays: number; maxDays: number }[];
   /** Business days to prepare the order before it ships, as the store's policies promised at checkout. */
@@ -62,7 +70,8 @@ export type ShippingAddress = {
 };
 
 /** What a checkout request knew about the shopper for ad attribution (lib/tiktok.ts). */
-export type AdAttribution = { ttclid: string | null; ttp: string | null; ip: string | null; userAgent: string | null; url: string | null };
+/** Ad click and browser ids from checkout: TikTok's (ttclid, _ttp) and Meta's (_fbc, _fbp), plus the request details both match on. */
+export type AdAttribution = { ttclid: string | null; ttp: string | null; ip: string | null; userAgent: string | null; url: string | null; fbc?: string | null; fbp?: string | null };
 
 export type Checkout = {
   id: string; store_id: string; product_id: string; stripe_session_id: string | null;
@@ -73,4 +82,6 @@ export type Checkout = {
   kind?: ProductKind; variant_id?: string | null; quantity?: number;
   physical_snapshot?: PhysicalSnapshot | null;
   attribution?: AdAttribution | null;
+  /** Abandoned checkout recovery (lib/abandoned.ts). */
+  expired_at?: string | null; recovery_url?: string | null; recovery_email?: string | null; recovered_at?: string | null;
 };

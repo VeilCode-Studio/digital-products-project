@@ -359,6 +359,35 @@
 .st-rates span:nth-child(2) { color: var(--st-muted); }
 
 /* FAQ */
+/* Quantity offers */
+.st-offers { display: grid; gap: 10px; margin: 22px 0 4px; padding: 0; border: 0; }
+.st-offers legend { margin-bottom: 10px; font-size: 14px; font-weight: 600; }
+.st-offer { display: flex; gap: 14px; align-items: center; justify-content: space-between; width: 100%; padding: 14px 16px; border: 1.5px solid var(--st-border); border-radius: var(--st-radius); background: var(--st-bg); color: var(--st-text); text-align: left; cursor: pointer; transition: border-color 0.2s var(--st-ease), background-color 0.2s var(--st-ease); }
+.st-offer[aria-pressed="true"] { border-color: var(--st-accent); background: var(--st-accent-soft); }
+.st-offer-name { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.st-offer-save { padding: 2px 8px; border-radius: 999px; background: var(--st-accent); color: var(--st-on-accent); font-size: 12px; font-weight: 650; }
+.st-offer-tag { color: var(--st-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.st-offer-price { display: grid; justify-items: end; gap: 2px; }
+.st-offer-price span { color: var(--st-muted); font-size: 12px; }
+.st-offer-total { margin-top: 10px; color: var(--st-muted); font-size: 14px; }
+.st-offer-total strong { color: var(--st-text); }
+
+/* Reviews */
+.st-stars { display: inline-flex; gap: 1px; color: color-mix(in srgb, var(--st-muted) 35%, transparent); font-size: 17px; line-height: 1; letter-spacing: 0; }
+.st-stars .is-on { color: #f2a516; }
+.st-reviews-summary { display: inline-flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; margin-top: 14px; color: var(--st-muted); }
+.st-reviews-summary strong { color: var(--st-text); }
+.st-review-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 18px; padding: 0; list-style: none; }
+.st-review { display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid var(--st-border); border-radius: var(--st-radius); background: var(--st-bg); }
+.st-review h3 { font-size: 1.1rem; }
+.st-review p { color: var(--st-text); line-height: 1.6; }
+.st-review-photo { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: calc(var(--st-radius) * 0.7); background: var(--st-surface); }
+.st-review-photo img { object-fit: cover; }
+.st-review-by { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: auto; font-size: 14px; }
+.st-review-by span { color: var(--st-muted); }
+.st-rating-link { display: inline-flex; gap: 8px; align-items: center; margin-top: 10px; color: var(--st-muted); font-size: 14px; text-decoration: none; }
+.st-rating-link:hover { color: var(--st-text); }
+
 .st-faq-list { border-top: 1px solid var(--st-border); }
 .st-faq-list details { border-bottom: 1px solid var(--st-border); }
 .st-faq-list summary {

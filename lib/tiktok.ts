@@ -55,12 +55,13 @@ export function attributionFrom(req: Request): AdAttribution | null {
   try { if (referer && new URL(referer).origin === new URL(getEnv().APP_URL).origin) url = referer.slice(0, 2000); } catch { url = null; }
   return {
     ttclid: safe(readCookie(cookies, "st_ttclid"), 500), ttp: safe(readCookie(cookies, "_ttp"), 200),
+    fbc: safe(readCookie(cookies, "_fbc"), 500), fbp: safe(readCookie(cookies, "_fbp"), 200),
     ip: ip && ip.length <= 64 && /^[0-9a-fA-F:.]+$/.test(ip) ? ip : null,
     userAgent: userAgent && userAgent.length <= 500 ? userAgent : null, url,
   };
 }
 
-const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 /** E.164, as TikTok matches phone numbers: US numbers may arrive without the +1. */
 export function e164(phone: string | null | undefined) {
   if (!phone) return null;
@@ -100,7 +101,7 @@ export function purchaseEvent(pixelId: string, checkout: Checkout, order: Order,
 /**
  * Sends a paid physical order to TikTok's Events API when the store has a pixel with a server token
  * and the shopper didn't opt out. Outside production it only sends with TIKTOK_TEST_EVENT_CODE, so
- * staging shows up in TikTok's Test Events instead of real reporting. Then forgets the attribution.
+ * staging shows up in TikTok's Test Events instead of real reporting.
  */
 export async function sendTikTokPurchase(pixelId: string | null | undefined, checkout: Checkout, order: Order) {
   const attribution = checkout.attribution;
@@ -117,6 +118,10 @@ export async function sendTikTokPurchase(pixelId: string | null | undefined, che
   });
   const result = await response.json().catch(() => null) as { code?: number } | null;
   if (!response.ok || result?.code !== 0) throw new Error(`TikTok did not accept the event (${result?.code ?? response.status})`);
-  await getSupabase().from("checkouts").update({ attribution: null }).eq("id", checkout.id);
   return "sent";
+}
+
+/** Once every pixel has had its purchase, the click ids and request details are no longer kept. */
+export async function forgetAttribution(checkoutId: string) {
+  await getSupabase().from("checkouts").update({ attribution: null }).eq("id", checkoutId);
 }

@@ -5,7 +5,8 @@ import { insertPhysicalOrder, markConfirmationSent } from "./orders";
 import { sendOrderConfirmation } from "./physical-email";
 import { getCatalogProduct } from "./catalog";
 import { parseBrand } from "./store-themes";
-import { sendTikTokPurchase } from "./tiktok";
+import { forgetAttribution, sendTikTokPurchase } from "./tiktok";
+import { sendMetaPurchase } from "./meta";
 import type { Checkout, PhysicalSnapshot, ShippingAddress } from "./catalog.types";
 import type { PaymentConnection } from "./payment.types";
 
@@ -71,12 +72,18 @@ export async function recordPhysicalOrder(session: Stripe.Checkout.Session, chec
   }
   if (inserted && checkout.attribution) {
     // Ads measurement must never hold up an order: log and carry on.
-    try {
-      const product = await getCatalogProduct(checkout.product_id);
-      await sendTikTokPurchase(parseBrand(product?.brand, checkout.store_id, checkout.product_id).tiktokPixelId, checkout, order);
-    } catch (error) {
-      console.warn("TikTok purchase event not sent", { sessionId: session.id, reason: error instanceof Error ? error.message : "unknown" });
+    let brand = null;
+    try { brand = parseBrand((await getCatalogProduct(checkout.product_id))?.brand, checkout.store_id, checkout.product_id); } catch { brand = null; }
+    const reports: [string, () => Promise<string>][] = [
+      ["TikTok", () => sendTikTokPurchase(brand?.tiktokPixelId, checkout, order)],
+      ["Meta", () => sendMetaPurchase(brand?.metaPixelId, checkout, order)],
+    ];
+    for (const [platform, send] of reports) {
+      try { await send(); } catch (error) {
+        console.warn(`${platform} purchase event not sent`, { sessionId: session.id, reason: error instanceof Error ? error.message : "unknown" });
+      }
     }
+    await forgetAttribution(checkout.id).catch(() => console.warn("Could not clear ad attribution", { sessionId: session.id }));
   }
   return order;
 }

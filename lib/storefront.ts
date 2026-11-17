@@ -20,7 +20,7 @@ export type PublicShipping = { name: string; amount: number; minDays: number; ma
 export type Storefront = {
   product: { id: string; slug: string; name: string; tagline: string; description: string; currency: string; draft: boolean };
   theme: ThemeId;
-  brand: { name: string; logo: string | null; accent: string | null; supportEmail: string | null; tiktokPixelId: string | null };
+  brand: { name: string; logo: string | null; accent: string | null; supportEmail: string | null; tiktokPixelId: string | null; metaPixelId: string | null };
   page: StorePage;
   variants: PublicVariant[];
   options: PublicOption[];
@@ -107,19 +107,29 @@ export function storefrontMediaBase() {
   return `${getEnv().SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/object/public/storefront/`;
 }
 
+/** The editor's unsaved draft is shown for up to a day after its last change. */
+const PREVIEW_DRAFT_MS = 86_400_000;
+
 /**
  * Loads a physical store page. Drafts are only returned for `preview` requests from the signed-in owner,
- * and an unreadable page or brand is treated as not found rather than rendered half-validated.
+ * and an unreadable page or brand is treated as not found rather than rendered half-validated. With
+ * `unsaved`, the owner sees the editor's latest unsaved draft (validated again here) instead.
  */
-export async function getStorefront(slug: string, { preview = false } = {}): Promise<Storefront | null> {
+export async function getStorefront(slug: string, { preview = false, unsaved = false } = {}): Promise<Storefront | null> {
   if (!/^[a-z0-9-]{1,80}$/.test(slug)) return null;
   const db = getSupabase();
-  const { data: product, error } = await db.from("products").select("*")
+  const { data: saved, error } = await db.from("products").select("*")
     .eq("store_id", STORE_ID).eq("slug", slug).eq("kind", "physical").maybeSingle<CatalogProduct>();
   if (error) throw new Error("Could not load store");
-  if (!product) return null;
-  const draft = product.status !== "published";
-  if (draft && !(preview && await ownerUser())) return null;
+  if (!saved) return null;
+  const owner = preview && await ownerUser();
+  const draft = saved.status !== "published" || (unsaved && !!owner);
+  if (saved.status !== "published" && !owner) return null;
+  const pending = unsaved && owner && saved.preview_draft && saved.preview_updated_at && Date.now() - Date.parse(saved.preview_updated_at) < PREVIEW_DRAFT_MS
+    ? saved.preview_draft : null;
+  const product: CatalogProduct = pending
+    ? { ...saved, name: pending.name, tagline: pending.tagline, theme: pending.theme, brand: pending.brand, page: pending.page }
+    : saved;
   if (!product.page || !product.theme || !(THEMES as readonly string[]).includes(product.theme)) return null;
 
   let page: StorePage;
@@ -140,7 +150,9 @@ export async function getStorefront(slug: string, { preview = false } = {}): Pro
       : Promise.resolve({ data: [] as ShippingRate[], error: null }),
   ]);
   if (variantsResult.error || ratesResult.error) throw new Error("Could not load store");
-  const rows = (variantsResult.data ?? []) as ProductVariant[];
+  const rows = pending
+    ? pending.variants.map((variant, position) => ({ ...variant, store_id: STORE_ID, product_id: product.id, position, sku: null, active: true, supplier_url: null, supplier_sku: null, created_at: "", updated_at: "" }))
+    : (variantsResult.data ?? []) as ProductVariant[];
   const mediaBase = storefrontMediaBase();
   const options = publicOptions(rows);
   let policies: StorePolicies | null = null;
@@ -153,7 +165,7 @@ export async function getStorefront(slug: string, { preview = false } = {}): Pro
       description: product.description, currency: product.currency, draft,
     },
     theme: product.theme as ThemeId,
-    brand: { name: brand.name || product.name, logo: brand.logoPath, accent: brand.accent, supportEmail: brand.supportEmail, tiktokPixelId: brand.tiktokPixelId },
+    brand: { name: brand.name || product.name, logo: brand.logoPath, accent: brand.accent, supportEmail: brand.supportEmail, tiktokPixelId: brand.tiktokPixelId, metaPixelId: brand.metaPixelId },
     page,
     variants: rows.map((row) => ({
       id: row.id, options: row.options ?? {}, label: variantLabel(row.options ?? {}, order),

@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { trackTikTok } from "./tiktok";
+import { trackAds } from "./tiktok";
 import { ChevronLeft, ChevronRight, Minus, Play, Plus, Truck } from "lucide-react";
-import { isAnimatedImage, type Media } from "@/lib/store-page";
+import { discountedUnit, isAnimatedImage, MAX_OFFER_QUANTITY, offerFor, type Media, type QuantityOffer } from "@/lib/store-page";
 import type { PublicOption, PublicShipping, PublicVariant } from "@/lib/storefront";
 import { StoreIcon, badgeIcon } from "./icons";
 import { StoreVideo } from "./store-video";
@@ -14,6 +14,10 @@ type Props = {
   currency: string; media: Media[]; highlights: string[]; badges: string[];
   variants: PublicVariant[]; options: PublicOption[]; shipping: PublicShipping[];
   mediaBase: string; draft: boolean;
+  /** Bundle tiers from the hero section; checkout applies the same discount on the server. */
+  offers: QuantityOffer[];
+  /** The reviews section's average, shown under the title and linking to it. */
+  rating: { average: number; count: number } | null;
 };
 
 const COLOR_WORDS: Record<string, string> = {
@@ -41,6 +45,13 @@ function addBusinessDays(from: Date, days: number) {
     if (date.getDay() !== 0 && date.getDay() !== 6) added++;
   }
   return date;
+}
+
+function StarRow({ rating }: { rating: number }) {
+  const filled = Math.round(rating);
+  return <span className="st-stars" role="img" aria-label={`Rated ${rating} out of 5`}>
+    {[1, 2, 3, 4, 5].map((star) => <span key={star} aria-hidden className={star <= filled ? "is-on" : ""}>★</span>)}
+  </span>;
 }
 
 export function ProductHero(props: Props) {
@@ -121,9 +132,10 @@ export function ProductHero(props: Props) {
     setError("");
     const key = `${variant.id}:${quantity}`;
     if (reservation.current?.key !== key) reservation.current = { key, id: crypto.randomUUID() };
-    trackTikTok("InitiateCheckout", {
-      content_type: "product", currency: props.currency.toUpperCase(), value: (variant.price * quantity) / 100,
-      contents: [{ content_id: props.productId, content_name: props.name, quantity, price: variant.price / 100 }],
+    const charged = discountedUnit(variant.price, offerFor(props.offers, quantity));
+    trackAds("InitiateCheckout", {
+      content_type: "product", currency: props.currency.toUpperCase(), value: (charged * quantity) / 100,
+      contents: [{ content_id: props.productId, content_name: props.name, quantity, price: charged / 100 }],
     }, reservation.current.id);
     try {
       const response = await fetch("/api/checkout/physical", {
@@ -141,6 +153,8 @@ export function ProductHero(props: Props) {
   }
 
   const price = variant?.price ?? Math.min(...variants.map((item) => item.price));
+  const offer = offerFor(props.offers, quantity);
+  const unit = discountedUnit(price, offer);
   const compareAt = variant?.compareAt ?? null;
   const saving = compareAt ? Math.round((1 - price / compareAt) * 100) : 0;
   const freeShipping = shipping.some((rate) => rate.amount === 0);
@@ -189,6 +203,7 @@ export function ProductHero(props: Props) {
         <div className="st-buybox" ref={buyRef}>
           {props.tagline && <p className="st-eyebrow">{props.tagline}</p>}
           <h1 className="st-title">{props.name}</h1>
+          {props.rating && <a className="st-rating-link" href="#reviews"><StarRow rating={props.rating.average} /><span>{props.rating.average.toFixed(1)} · {props.rating.count} review{props.rating.count === 1 ? "" : "s"}</span></a>}
           {props.headline && <p className="st-hero-headline">{props.headline}</p>}
           <div className="st-price-row">
             <span className="st-price">{variant ? "" : "From "}{money(price, currency)}</span>
@@ -223,14 +238,31 @@ export function ProductHero(props: Props) {
             );
           })}
 
+          {props.offers.length > 0 && variant && (
+            <fieldset className="st-offers">
+              <legend>Bundle and save</legend>
+              {[{ quantity: 1, percentOff: 0, label: "" }, ...props.offers].map((tier) => {
+                const each = discountedUnit(price, tier.percentOff ? tier : null);
+                const active = tier.percentOff ? offer?.quantity === tier.quantity : !offer;
+                return <button type="button" key={tier.quantity} className="st-offer" aria-pressed={active} onClick={() => setQuantity(tier.quantity)}>
+                  <span className="st-offer-name"><strong>{tier.quantity === 1 ? "1 item" : `Buy ${tier.quantity}`}</strong>
+                    {tier.percentOff > 0 && <span className="st-offer-save">Save {tier.percentOff}%</span>}
+                    {tier.label && <span className="st-offer-tag">{tier.label}</span>}</span>
+                  <span className="st-offer-price"><strong>{money(each * tier.quantity, currency)}</strong>{tier.quantity > 1 && <span>{money(each, currency)} each</span>}</span>
+                </button>;
+              })}
+            </fieldset>
+          )}
+
           <div className="st-buy-row">
             <div className="st-qty" role="group" aria-label="Quantity">
               <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={quantity <= 1} aria-label="Decrease quantity"><Minus size={16} /></button>
               <output aria-live="polite">{quantity}</output>
-              <button type="button" onClick={() => setQuantity((value) => Math.min(10, value + 1))} disabled={quantity >= 10} aria-label="Increase quantity"><Plus size={16} /></button>
+              <button type="button" onClick={() => setQuantity((value) => Math.min(MAX_OFFER_QUANTITY, value + 1))} disabled={quantity >= MAX_OFFER_QUANTITY} aria-label="Increase quantity"><Plus size={16} /></button>
             </div>
             <button type="button" className="st-button st-buy" onClick={buy} disabled={!variant || pending}>{cta}</button>
           </div>
+          {offer && variant && <p className="st-offer-total" aria-live="polite">{quantity} × {money(unit, currency)} = <strong>{money(unit * quantity, currency)}</strong> · you save {money((price - unit) * quantity, currency)}</p>}
           {error && <p className="st-error" role="alert">{error}</p>}
 
           {cheapestShipping && (

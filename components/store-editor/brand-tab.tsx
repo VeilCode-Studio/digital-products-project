@@ -5,7 +5,7 @@ import { ImagePathField } from "./media";
 import { TextField } from "./fields";
 import type { Draft } from "./draft";
 
-type Props = { draft: Draft; update: (update: (draft: Draft) => Draft) => void; serverPixels?: string[] };
+type Props = { draft: Draft; update: (update: (draft: Draft) => Draft) => void; serverPixels?: string[]; metaServerPixels?: string[] };
 
 /** Four theme cards drawn from the theme's own tokens, so each looks like the store it makes. */
 export function ThemePicker({ value, onChange, accent }: { value: ThemeId; onChange: (theme: ThemeId) => void; accent?: string | null }) {
@@ -26,7 +26,7 @@ export function ThemePicker({ value, onChange, accent }: { value: ThemeId; onCha
   </div>;
 }
 
-export function BrandTab({ draft, update, serverPixels = [] }: Props) {
+export function BrandTab({ draft, update, serverPixels = [], metaServerPixels = [] }: Props) {
   const tokens = THEME_TOKENS[draft.theme];
   const accent = draft.brand.accent ?? tokens.accent;
   const validAccent = /^#[0-9a-f]{6}$/i.test(accent);
@@ -58,13 +58,19 @@ export function BrandTab({ draft, update, serverPixels = [] }: Props) {
       <p className="se-note"><CreditCard size={15} aria-hidden /><span>{suffix ? <>Card statements end in <strong>{suffix}</strong>, after your Stripe account&apos;s prefix.</> : "Add a brand name with letters to show it on card statements."}</span></p>
     </section>
     <section className="workspace-panel form-panel">
-      <div className="form-section-heading"><span className="step-number"><Megaphone size={15} aria-hidden /></span><div><h2>Ads measurement</h2><p>Let TikTok see views, checkouts and purchases, so your ads optimise for sales.</p></div></div>
+      <div className="form-section-heading"><span className="step-number"><Megaphone size={15} aria-hidden /></span><div><h2>Ads measurement</h2><p>Let TikTok and Meta see views, checkouts and purchases, so your ads optimise for sales.</p></div></div>
       <TextField label="TikTok pixel ID" optional max={32} value={draft.brand.tiktokPixelId} placeholder="C4ABCD1234EFGH5678IJ"
         help="In TikTok Ads Manager: Tools › Events › Web events. Leave empty to turn tracking off." onChange={(tiktokPixelId) => setBrand({ tiktokPixelId: tiktokPixelId.trim().toUpperCase() })} />
       {draft.brand.tiktokPixelId.trim() && <p className="se-note"><span>{serverPixels.includes(draft.brand.tiktokPixelId.trim().toUpperCase())
         ? "Purchases are also sent from the server, so TikTok counts them even when a browser blocks the pixel."
         : "Browser events only for now. To also send purchases from the server, add this pixel's Events API access token to TIKTOK_ACCESS_TOKENS in Vercel."}
-        {" "}The privacy policy gains a TikTok section and every page gets a “Your privacy choices” link. Shoppers who opt out, or whose browser sends Global Privacy Control, aren&apos;t tracked.</span></p>}
+</span></p>}
+      <TextField label="Meta pixel ID" optional max={20} value={draft.brand.metaPixelId} placeholder="1234567890123456" inputMode="numeric"
+        help="In Meta Events Manager: Data sources › your pixel (Facebook and Instagram ads). Leave empty to turn tracking off." onChange={(metaPixelId) => setBrand({ metaPixelId: metaPixelId.replace(/\s/g, "") })} />
+      {draft.brand.metaPixelId.trim() && <p className="se-note"><span>{metaServerPixels.includes(draft.brand.metaPixelId.trim())
+        ? "Purchases are also sent through the Conversions API, so Meta counts them even when a browser blocks the pixel."
+        : "Browser events only for now. To also send purchases from the server, add this pixel's Conversions API access token to META_ACCESS_TOKENS in Vercel."}</span></p>}
+      {(draft.brand.tiktokPixelId.trim() || draft.brand.metaPixelId.trim()) && <p className="se-note"><span>The privacy policy names each platform you use and every page gets a “Your privacy choices” link. Shoppers who opt out, or whose browser sends Global Privacy Control, aren&apos;t tracked.</span></p>}
     </section>
   </>;
 }

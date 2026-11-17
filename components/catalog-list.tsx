@@ -4,6 +4,7 @@ import type { CatalogProduct } from "@/lib/catalog.types";
 import { formatMoney } from "@/lib/store-config";
 import { THEME_TOKENS, type ThemeId } from "@/lib/store-themes";
 import { productPageHref } from "@/lib/product-links";
+import { DuplicateStoreButton } from "@/components/duplicate-store-button";
 
 /**
  * The rows of /admin/products (digital) and /admin/stores (physical). `prices` holds each physical
@@ -29,6 +30,7 @@ export function CatalogList({ products, prices }: { products: CatalogProduct[]; 
           aria-label={`${product.status === "published" ? "View" : "Preview"} the page for ${product.name} in a new tab`}>
           {product.status === "published" ? <>View <ArrowUpRight size={14} aria-hidden="true" /></> : <>Preview <Eye size={14} aria-hidden="true" /></>}
         </a>
+        {physical && <DuplicateStoreButton id={product.id} name={product.name} />}
         <Link className="button secondary small" href={`/admin/products/${product.id}`}><PencilLine size={14} aria-hidden="true" /> Edit</Link>
       </div>
     </div>;

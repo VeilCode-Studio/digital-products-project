@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CircleCheck, Mail, PackageCheck, Truck } from "lucide-react";
 import { getStorefront } from "@/lib/storefront";
 import { StoreFrame } from "@/components/storefront/store-frame";
-import { TikTokEvent } from "@/components/storefront/tiktok";
+import { AdEvent } from "@/components/storefront/tiktok";
 import { findCheckout } from "@/lib/checkout";
 import "../storefront.css";
 
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function ThankYouPage({ params, searchParams }: Params) {
   const store = await getStorefront((await params).slug);
   if (!store) notFound();
-  const purchase = store.brand.tiktokPixelId ? await purchaseFor(store.product.id, (await searchParams).ref) : null;
+  const purchase = store.brand.tiktokPixelId || store.brand.metaPixelId ? await purchaseFor(store.product.id, (await searchParams).ref) : null;
   // Total time from ordering: processing (from the store's policies) plus the shipping option's transit time.
   const processing = store.policies?.processingDays ?? { min: 0, max: 0 };
   const earliest = store.shipping.length ? processing.min + Math.min(...store.shipping.map((rate) => rate.minDays)) : 0;
@@ -49,7 +49,7 @@ export default async function ThankYouPage({ params, searchParams }: Params) {
   ];
   return (
     <StoreFrame store={store}>
-      {purchase && <TikTokEvent event="Purchase" params={purchase.params} eventId={purchase.eventId} />}
+      {purchase && <AdEvent event="Purchase" params={purchase.params} eventId={purchase.eventId} />}
       <main className="st-section st-thanks">
         <div className="st-shell narrow">
           <span className="st-icon large st-thanks-mark"><CircleCheck size={32} strokeWidth={1.6} aria-hidden /></span>

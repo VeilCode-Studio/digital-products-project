@@ -64,6 +64,10 @@ export async function startCheckout(productId: string, checkoutId: string) {
   const session = await stripe.checkout.sessions.create({
     mode: "payment", ui_mode: "hosted_page", adaptive_pricing: { enabled: false },
     line_items: [{ price: checkout.stripe_price_id, quantity: 1 }],
+    // An unpaid session expires after 24 hours; Stripe then offers a recovery link for 30 days, and the
+    // shopper can tick "keep me updated" so the store may email it (lib/abandoned.ts).
+    after_expiration: { recovery: { enabled: true, allow_promotion_codes: false } },
+    consent_collection: { promotions: "auto" },
     client_reference_id: checkout.id,
     metadata: { app: "veilcode-store", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
     success_url: new URL("/thank-you", getEnv().APP_URL).toString(),

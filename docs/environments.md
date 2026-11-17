@@ -68,7 +68,7 @@ Done on 12 November 2026: separate Resend key, preview owner, allowlist, and `AD
 Done on 12 November 2026: shared variables are Production-only; preview values are scoped to the `staging` branch (secrets marked sensitive); the test-mode Stripe endpoint `we_1UaxNTHiapzsY1Cy3DRTtghV` delivers to staging; an end-to-end test purchase was delivered from the preview project only. Other preview branches receive no data or email credentials.
 
 1. Replace every variable shared by Preview and Production with separate entries, one per scope, using the values checked in step 4. Scope preview values to the `staging` branch where possible.
-2. Stripe (test mode): add a webhook endpoint at `https://staging.pod.veilcode.studio/api/stripe-webhook?x-vercel-protection-bypass=<secret>` for `checkout.session.completed` and `checkout.session.async_payment_succeeded`. Store its signing secret as the Preview `STRIPE_WEBHOOK_SECRET`.
+2. Stripe (test mode): add a webhook endpoint at `https://staging.pod.veilcode.studio/api/stripe-webhook?x-vercel-protection-bypass=<secret>` for `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`. Store its signing secret as the Preview `STRIPE_WEBHOOK_SECRET`.
 3. Deploy `staging`, make a test purchase to an allowlisted address, and confirm the order appears only in the preview project.
 
 ### 6. Local development

@@ -1,6 +1,6 @@
 import { requireOwner } from "@/lib/auth";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
-import { createStore, saveStore } from "@/lib/manage-stores";
+import { createStore, duplicateStore, saveStore, saveStorePreview } from "@/lib/manage-stores";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -15,6 +15,8 @@ export async function POST(req: Request) {
     const body = await jsonObject(req, MAX_BODY);
     const result = body.action === "create" ? await createStore(body)
       : body.action === "save" ? await saveStore(body)
+      : body.action === "duplicate" ? await duplicateStore(body)
+      : body.action === "preview" ? await saveStorePreview(body)
       : (() => { throw new HttpError(400, "Unknown action."); })();
     return Response.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return apiError(error); }

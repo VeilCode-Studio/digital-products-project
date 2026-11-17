@@ -35,6 +35,20 @@ function BuyLink({ label }: { label: string }) {
   return <a className="st-button" href="#buy">{label}</a>;
 }
 
+/** Average rating to one decimal place, and how many reviews it is based on. */
+export function reviewSummary(items: readonly { rating: number }[]) {
+  const count = items.length;
+  return { count, average: count ? Math.round(items.reduce((sum, item) => sum + item.rating, 0) / count * 10) / 10 : 0 };
+}
+
+/** Five stars, filled to the rating (halves rounded to the nearest whole star). */
+export function Stars({ rating }: { rating: number }) {
+  const filled = Math.round(rating);
+  return <span className="st-stars" role="img" aria-label={`Rated ${rating} out of 5`}>
+    {[1, 2, 3, 4, 5].map((star) => <span key={star} aria-hidden className={star <= filled ? "is-on" : ""}>★</span>)}
+  </span>;
+}
+
 export function StoreSection({ section, ctx }: { section: Section; ctx: Context }) {
   switch (section.type) {
     case "showcase": {
@@ -301,8 +315,30 @@ export function StoreSection({ section, ctx }: { section: Section; ctx: Context 
         </section>
       );
     }
-    // Verified reviews arrive in Phase 2; until then the section renders nothing rather than placeholders.
-    case "reviews":
+    case "reviews": {
+      const { data } = section;
+      if (!data.items.length) return null;
+      const summary = reviewSummary(data.items);
+      return (
+        <section className="st-section st-reviews" id="reviews" aria-labelledby={`${section.id}-title`}>
+          <div className="st-shell">
+            <header className="st-heading center">
+              <h2 id={`${section.id}-title`}>{data.title || "What customers say"}</h2>
+              <p className="st-reviews-summary"><Stars rating={summary.average} /><span><strong>{summary.average.toFixed(1)}</strong> out of 5 · {summary.count} review{summary.count === 1 ? "" : "s"}</span></p>
+            </header>
+            <ul className="st-review-list">
+              {data.items.map((review, index) => <li key={index} className="st-review">
+                <Stars rating={review.rating} />
+                {review.title && <h3>{review.title}</h3>}
+                <Paragraphs text={review.text} />
+                {review.media && <div className="st-review-photo"><Visual media={review.media} ctx={ctx} sizes="(max-width: 700px) 90vw, 320px" /></div>}
+                <p className="st-review-by"><strong>{review.name}</strong>{review.location && <span>{review.location}</span>}</p>
+              </li>)}
+            </ul>
+          </div>
+        </section>
+      );
+    }
     // The hero and announcement bar are placed by the page itself.
     case "hero":
     case "announcement":

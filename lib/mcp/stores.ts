@@ -53,9 +53,9 @@ export async function addStoreMedia(productId: string, bytes: Uint8Array) {
 
 export const STORE_GUIDE = `How a store document works (save it back whole with save_store_draft, keeping "revision" as you received it):
 - name (≤120), slug (lowercase-hyphenated, ≤80), tagline (≤200), theme: ${THEMES.join(" | ")}.
-- brand: { name, logoPath (media path or null), accent ("#rrggbb" or null), supportEmail (needed to publish), tiktokPixelId (leave as is) }.
+- brand: { name, logoPath (media path or null), accent ("#rrggbb" or null), supportEmail (needed to publish), tiktokPixelId and metaPixelId (leave as is) }.
 - page: { version: 1, sections: [{ id, type, enabled, data }] } in display order. Section types and data:
-  announcement { text } · hero { headline, subheadline, media: Media[], highlights: string[], badges: string[] }
+  announcement { text } · hero { headline, subheadline, media: Media[], highlights: string[], badges: string[], offers: [{ quantity (2-10), percentOff (1-50), label }] (up to 3 bundle tiers, each larger with a bigger discount) }
   showcase { eyebrow, headline, text, media, layout: "split"|"centered", tone, watermark, buttonLabel }
   benefits { title, layout: "grid"|"spotlight", media, items: [{ icon, title, text }] }
   features { items: [{ eyebrow, title, text, media }] } · image_banner { media, headline, text, buttonLabel }
@@ -63,7 +63,7 @@ export const STORE_GUIDE = `How a store document works (save it back whole with 
   statement { quote, attribution, tone } · video_strip { title, videos: [{ media, caption }] }
   how_it_works { title, steps: [{ title, text }] } · comparison { title, ourLabel, theirLabel, rows: [{ feature, ours, theirs }] }
   size_guide { title, note, columns: string[], rows: string[][] } · specs { title, rows: [{ label, value }] }
-  reviews { title } · guarantee { title, text } · faq { title, items: [{ question, answer }] } · final_cta { headline, text }
+  reviews { title, items: [{ name, location, rating (1-5), title, text, media (image or null) }] } (only genuine customer reviews, word for word: never write, invent or edit reviews) · guarantee { title, text } · faq { title, items: [{ question, answer }] } · final_cta { headline, text }
   Media = { path, kind: "image"|"video", alt, poster: null } using paths from this store's media (add files with import_file). tone: "plain"|"soft"|"accent".
   icon: ${ICONS.join(", ")}.
 - variants: [{ id (uuid), options: { "Color": "Black" }, sku, price_amount (cents), compare_at_amount (cents or null), image_path, active, supplier_url, supplier_sku }]. New variants need a new uuid.

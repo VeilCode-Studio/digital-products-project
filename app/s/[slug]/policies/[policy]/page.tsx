@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { getStorefront, type Storefront } from "@/lib/storefront";
 import { buildPolicy, POLICY_KINDS, POLICY_TITLES, type PolicyKind } from "@/lib/store-policies";
+import { adPlatforms } from "@/lib/store-themes";
 import { StoreFrame } from "@/components/storefront/store-frame";
 import { AdChoices } from "@/components/storefront/tiktok";
 import "../../storefront.css";
@@ -17,7 +18,7 @@ const loadStore = cache((slug: string, preview: boolean) => getStorefront(slug, 
 function documentFor(store: Storefront, kind: PolicyKind) {
   return buildPolicy(kind, {
     brand: store.brand.name, productName: store.product.name, supportEmail: store.brand.supportEmail,
-    currency: store.product.currency, rates: store.shipping, policies: store.policies!, adTracking: !!store.brand.tiktokPixelId,
+    currency: store.product.currency, rates: store.shipping, policies: store.policies!, adPlatforms: adPlatforms(store.brand),
   });
 }
 async function load({ params, searchParams }: Params) {
@@ -53,10 +54,10 @@ export default async function PolicyPage(props: Params) {
           <h1>{doc.title}</h1>
           <p className="st-lede">{doc.intro}</p>
           <p className="st-policy-updated">Last updated {dateFormat.format(new Date(doc.updatedAt))}</p>
-          {kind === "privacy" && store.brand.tiktokPixelId && <section id="choices" className="st-choices-section">
+          {kind === "privacy" && adPlatforms(store.brand).length > 0 && <section id="choices" className="st-choices-section">
             <h2>Your privacy choices</h2>
-            <p>You can opt out of us sharing your information with TikTok for advertising. Your choice applies to this browser.</p>
-            <AdChoices />
+            <p>You can opt out of us sharing your information with {adPlatforms(store.brand).join(" and ")} for advertising. Your choice applies to this browser.</p>
+            <AdChoices platforms={adPlatforms(store.brand).join(" and ")} />
           </section>}
           {doc.sections.map((section) => (
             <section key={section.heading}>

@@ -17,3 +17,18 @@ ttq.load("${pixelId}");ttq.page();
 (w.__stTtqPending||[]).forEach(function(a){ttq.track(a[0],a[1],a[2])});w.__stTtqPending=[];
 })(window,document,"ttq");`;
 }
+
+/**
+ * The Meta (Facebook) pixel's loader, with the same opt-out check and event replay as TikTok's. The
+ * pixel itself keeps the click id (fbclid) in its _fbc cookie, which checkout sends with the purchase.
+ * The pixel id is validated on the server (digits only) before it reaches this string.
+ */
+export function metaPixelLoader(pixelId: string) {
+  return `(function(w,d){
+if(navigator.globalPrivacyControl===true||/(?:^|; )${OPT_OUT_COOKIE}=1/.test(d.cookie))return;
+if(w.fbq)return;var n=w.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!w._fbq)w._fbq=n;n.push=n;n.loaded=!0;n.version="2.0";n.queue=[];
+var t=d.createElement("script");t.async=!0;t.src="https://connect.facebook.net/en_US/fbevents.js";var s=d.getElementsByTagName("script")[0];s.parentNode.insertBefore(t,s);
+w.fbq("init","${pixelId}");w.fbq("track","PageView");
+(w.__stFbqPending||[]).forEach(function(a){w.fbq("track",a[0],a[1],a[2])});w.__stFbqPending=[];
+})(window,document);`;
+}

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUpRight, Check, CircleAlert, Copy, EyeOff, Globe, RefreshCw, Rocket, Smartphone, Store } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, CircleAlert, Copy, EyeOff, Globe, History, RefreshCw, Rocket, Smartphone, Sparkles, Store } from "lucide-react";
 import { STORE_ID } from "@/lib/store-config";
 import type { StoreEditorData } from "@/lib/manage-stores";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -27,6 +27,23 @@ const CHECKS: { tab: TabId; label: string }[] = [
 ];
 
 type SaveError = { text: string; conflict: boolean; signIn?: boolean };
+/** An unsaved draft kept in this browser, so a crash or closed tab doesn't lose work. */
+type Backup = { revision: number; savedAt: number; draft: Draft };
+const backupKey = (productId: string) => `veilcode:store-draft:${productId}`;
+function readBackup(productId: string): Backup | null {
+  try {
+    const raw = localStorage.getItem(backupKey(productId));
+    const backup = raw ? JSON.parse(raw) as Backup : null;
+    return backup && typeof backup.revision === "number" && backup.draft && typeof backup.draft === "object" ? backup : null;
+  } catch { return null; }
+}
+function writeBackup(productId: string, backup: Backup | null) {
+  try {
+    if (backup) localStorage.setItem(backupKey(productId), JSON.stringify(backup));
+    else localStorage.removeItem(backupKey(productId));
+  } catch { /* Private browsing or a full quota: the editor still works, just without the backup. */ }
+}
+const backupTime = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 function ConfirmDialog({ open, onOpenChange, title, description, confirm, onConfirm, pending, icon }: {
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; confirm: string; onConfirm: () => void; pending?: boolean; icon: React.ReactNode;
@@ -55,6 +72,9 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
   const [reveal, setReveal] = useState<{ section: number; at: number } | null>(null);
   const [previewVersion, setPreviewVersion] = useState(0);
   const [confirm, setConfirm] = useState<"discard" | "unpublish" | null>(null);
+  const [restorable, setRestorable] = useState<Backup | null>(null);
+  // The phone preview shows the saved store, or once the owner edits, their unsaved draft.
+  const [livePreview, setLivePreview] = useState<{ version: number; state: "idle" | "sending" | "blocked" }>({ version: 0, state: "idle" });
   const heading = useRef<HTMLDivElement>(null);
 
   const update = useCallback((change: (draft: Draft) => Draft) => setDraft(change), []);
@@ -77,6 +97,40 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
     if (TABS.some((entry) => entry.id === requested)) setTab(requested);
   }, []);
   const choose = (next: TabId) => { setTab(next); window.history.replaceState(null, "", `#${next}`); };
+
+  // Offer to bring back a draft this browser kept from an earlier visit.
+  useEffect(() => {
+    const backup = readBackup(productId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after hydration
+    if (backup && JSON.stringify(backup.draft) !== JSON.stringify(baseline)) setRestorable(backup);
+    else writeBackup(productId, null);
+  // Only on first load: later saves and discards clear the backup themselves.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
+
+  // Keep the backup current while there are unsaved changes, and drop it once there are none.
+  useEffect(() => {
+    if (restorable) return;
+    const id = window.setTimeout(() => writeBackup(productId, dirty ? { revision, savedAt: Date.now(), draft } : null), 600);
+    return () => window.clearTimeout(id);
+  }, [draft, dirty, revision, productId, restorable]);
+
+  // Live preview: a moment after the owner stops editing, send the draft and reload the phone preview.
+  useEffect(() => {
+    if (!dirty) return;
+    // A draft that wouldn't save isn't sent; the note under the preview says why (derived below).
+    if (problems.length) return;
+    const controller = new AbortController();
+    const id = window.setTimeout(async () => {
+      setLivePreview((current) => ({ ...current, state: "sending" }));
+      try {
+        const body = { ...saveRequest(draft, productId, revision, [], draft.status), action: "preview" };
+        const response = await fetch("/api/admin/stores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
+        setLivePreview((current) => ({ version: response.ok ? current.version + 1 : current.version, state: response.ok ? "idle" : "blocked" }));
+      } catch { if (!controller.signal.aborted) setLivePreview((current) => ({ ...current, state: "blocked" })); }
+    }, 900);
+    return () => { window.clearTimeout(id); controller.abort(); };
+  }, [draft, dirty, problems.length, productId, revision]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -111,6 +165,7 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
         return false;
       }
       setBaseline(sent);
+      writeBackup(productId, null);
       setDraft((current) => ({ ...current, status }));
       setRevision(result.revision);
       setSaved({ slug: result.slug, status });
@@ -133,6 +188,7 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
   }, [dirty, save]);
 
   const previewPath = `/s/${saved.slug}?preview=1`;
+  const framePath = dirty && livePreview.version > 0 ? `${previewPath}&draft=1&v=${livePreview.version}` : `${previewPath}&v=${previewVersion}`;
   const tabHasProblem = (id: TabId) => problems.some((problem) => problem.tab === id);
   const ready = !readiness.length && !problems.length;
 
@@ -161,6 +217,12 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
         </button>)}
       </nav>
 
+      {restorable && <div className="se-restore" role="status">
+        <History size={16} aria-hidden />
+        <span>Unsaved changes from {backupTime.format(new Date(restorable.savedAt))} were kept in this browser.{restorable.revision !== revision ? " The store has been saved since, so restoring brings back your older edits." : ""}</span>
+        <button type="button" className="button primary small" onClick={() => { setDraft(restorable.draft); setRestorable(null); toast.success("Changes restored", { description: "Review them, then save." }); }}>Restore</button>
+        <button type="button" className="button secondary small" onClick={() => { writeBackup(productId, null); setRestorable(null); }}>Dismiss</button>
+      </div>}
       {data.pageProblem && <p className="form-error" role="alert">The saved page had a problem ({data.pageProblem}). Fix it on the Page tab; saving replaces the page.</p>}
       {error && <div className="form-error se-error" role="alert"><CircleAlert size={16} aria-hidden /><span>{error.text}</span>
         {error.conflict && <button type="button" className="button secondary small" onClick={() => window.location.reload()}><RefreshCw size={14} aria-hidden />Reload</button>}
@@ -174,7 +236,7 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
             <PageBuilder page={draft.page} problem={pageProblem ? { section: pageProblem.section ?? -1, text: pageProblem.text } : null} reveal={reveal}
               onChange={(change) => update((current) => ({ ...current, page: change(current.page) }))} />
           </section>}
-          {tab === "brand" && <BrandTab draft={draft} update={update} serverPixels={data.tiktokServerPixels} />}
+          {tab === "brand" && <BrandTab draft={draft} update={update} serverPixels={data.tiktokServerPixels} metaServerPixels={data.metaServerPixels} />}
           {tab === "shipping" && <ShippingTab draft={draft} update={update} />}
           {tab === "policies" && <PoliciesTab draft={draft} update={update} previewBase={`/s/${saved.slug}`} />}
           {tab === "media" && <section className="workspace-panel form-panel">
@@ -213,8 +275,13 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
             <span>Phone preview</span>
             <button type="button" className="se-icon-button" aria-label="Reload preview" onClick={() => setPreviewVersion((version) => version + 1)}><RefreshCw size={14} aria-hidden /></button>
           </div>
-          <div className="se-phone"><iframe key={previewVersion} src={previewPath} title="Store preview at phone size" loading="lazy" /></div>
-          <p className="se-preview-note">{dirty ? "Shows your last save. Save to see your changes here." : "Up to date."}</p>
+          <div className="se-phone"><iframe key={framePath} src={framePath} title="Store preview at phone size" loading="lazy" /></div>
+          <p className="se-preview-note" aria-live="polite">{!dirty ? "Up to date." : problems.length || livePreview.state === "blocked" ? "Fix the highlighted problem to see your latest changes here." : livePreview.state === "sending" ? "Updating…"
+            : livePreview.version > 0 ? "Showing your unsaved changes. Only you can see them." : "Your changes show here a moment after you stop typing."}</p>
+          <div className="se-assistant">
+            <Sparkles size={15} aria-hidden />
+            <p>Claude, ChatGPT or Codex can draft this store for you: copy, sections, reviews you received, images. <Link href="/admin/connections">Connect an assistant</Link>, then ask it to edit <strong>/s/{saved.slug}</strong>. It saves a draft; you review and publish.</p>
+          </div>
         </aside>
       </div>
 
@@ -228,7 +295,7 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
 
       <ConfirmDialog open={confirm === "discard"} onOpenChange={(open) => setConfirm(open ? "discard" : null)} icon={<RefreshCw size={20} aria-hidden />}
         title="Discard your changes?" description="Everything since your last save is undone. Uploaded media stays in the library." confirm="Discard changes"
-        onConfirm={() => { setDraft(baseline); setError(null); setConfirm(null); }} />
+        onConfirm={() => { setDraft(baseline); setError(null); setConfirm(null); writeBackup(productId, null); }} />
       <ConfirmDialog open={confirm === "unpublish"} onOpenChange={(open) => setConfirm(open ? "unpublish" : null)} icon={<EyeOff size={20} aria-hidden />} pending={saving === "unpublish"}
         title="Unpublish this store?" description="Visitors, including anyone arriving from your ads, will see a not-found page until you publish again. Orders already placed aren't affected."
         confirm={saving === "unpublish" ? "Unpublishing…" : "Unpublish"} onConfirm={async () => { if (await save("draft")) setConfirm(null); }} />
