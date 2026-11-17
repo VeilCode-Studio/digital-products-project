@@ -206,7 +206,7 @@
 @media (max-width: 600px) {
   .admin-shell .admin-sidebar { padding: 14px 14px 10px; }
   .admin-shell .admin-sidebar .brand { margin: 0 0 14px; }
-  .admin-shell .admin-sidebar nav a { flex-direction: column; gap: 5px; padding: 10px 4px; font-size: 10px; }
+  .admin-shell .admin-sidebar nav a { flex-direction: column; justify-content: flex-start; align-items: center; gap: 5px; min-width: 0; padding: 10px 4px; font-size: 10px; line-height: 1.25; text-align: center; white-space: normal; }
   .admin-shell .sidebar-bottom > a, .admin-shell .sidebar-bottom button { font-size: 10px; }
   .admin-shell .admin-topbar { display: flex; }
   .admin-shell .admin-content { padding-top: 26px; }
