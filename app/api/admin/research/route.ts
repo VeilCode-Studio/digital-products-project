@@ -2,6 +2,7 @@ import { requireOwner } from "@/lib/auth";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
 import { createResearch, createStoreFromResearch, deleteResearch, updateResearch } from "@/lib/research";
 import { searchMetaAds } from "@/lib/meta-ads";
+import { metaFilters } from "@/lib/research.types";
 import { cjDetail, searchCj } from "@/lib/cj";
 import { createDigitalFromResearch } from "@/lib/research-digital";
 
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
       case "delete": result = await deleteResearch(body); break;
       case "create-store": result = await createStoreFromResearch(body); break;
       case "create-digital": result = await createDigitalFromResearch(body); break;
-      case "meta-search": result = await searchMetaAds(query()); break;
+      case "meta-search": result = await searchMetaAds(query(), metaFilters(body.filters)); break;
       case "cj-search": result = { products: await searchCj(query()) }; break;
       case "cj-detail": result = { supplier: await cjDetail(typeof body.pid === "string" ? body.pid : "") }; break;
       default: throw new HttpError(400, "Unknown action.");

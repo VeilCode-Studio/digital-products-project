@@ -142,9 +142,13 @@ export function buildMcpServer(caller: Caller) {
   // ── Research ──────────────────────────────────────────────────────────────────────────────
   tool("research", "search_meta_ads", {
     title: "Search Meta ads (UK & EU)", annotations: lookup,
-    description: "Active Meta ads delivered in the UK and EU matching a phrase, ranked by days running and number of versions (signs an ad is profitable). Meta's API can't return US product ads.",
-    input: { query: z.string().min(2).max(100) },
-  }, ({ query }) => searchMetaAds(query));
+    description: "Active Meta ads delivered in the UK and EU matching a phrase, ranked by days running and number of versions (signs an ad is profitable). Without min_days Meta returns mostly ads started in the last day or two; use min_days 30 to find proven ads. `pages` > 1 means several pages run the same text, usually one seller's network. Meta's API can't return US product ads.",
+    input: {
+      query: z.string().min(2).max(100),
+      min_days: z.union([z.literal(0), z.literal(7), z.literal(30), z.literal(60)]).optional().describe("Only ads that started at least this many days ago."),
+      media: z.enum(["ALL", "VIDEO", "IMAGE"]).optional(),
+    },
+  }, ({ query, min_days, media }) => searchMetaAds(query, { minDays: min_days, media }));
 
   tool("research", "search_cj_products", {
     title: "Search CJ Dropshipping", annotations: lookup,

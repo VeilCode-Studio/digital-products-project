@@ -33,7 +33,21 @@ export type MetaAd = {
   startedAt: string | null; daysRunning: number | null; reach: number | null;
   /** How many of this page's ads in the results share this ad's headline or text. */
   versions: number; platforms: string[];
+  /** Ads with the same text share a key; `pages` is how many different pages run that text. */
+  copyKey: string; pages: number;
 };
+/** Filters Meta applies to the search itself, so the results aren't just the newest 100 ads. */
+export const META_MIN_DAYS = [0, 7, 30, 60] as const;
+export const META_MEDIA = ["ALL", "VIDEO", "IMAGE"] as const;
+export type MetaFilters = { minDays?: (typeof META_MIN_DAYS)[number]; media?: (typeof META_MEDIA)[number] };
+/** Reads filters from a request, falling back to no filter for anything unexpected. */
+export function metaFilters(raw: unknown): Required<MetaFilters> {
+  const input = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  return {
+    minDays: (META_MIN_DAYS as readonly unknown[]).includes(input.minDays) ? input.minDays as Required<MetaFilters>["minDays"] : 0,
+    media: (META_MEDIA as readonly unknown[]).includes(input.media) ? input.media as Required<MetaFilters>["media"] : "ALL",
+  };
+}
 export type MetaSearch =
   | { status: "ok"; ads: MetaAd[]; countries: string[] }
   | { status: "not_configured" | "not_approved" | "token_expired" | "error"; message: string };

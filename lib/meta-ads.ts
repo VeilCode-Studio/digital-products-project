@@ -1,5 +1,5 @@
 import "server-only";
-import { daysSince, type MetaAd, type MetaSearch } from "./research.types";
+import { daysSince, metaFilters, type MetaAd, type MetaFilters, type MetaSearch } from "./research.types";
 
 // Meta Ad Library API (graph.facebook.com/<version>/ads_archive), for product research.
 // For ordinary product ads it only returns ads delivered in the UK or the EU, so searches cover those
@@ -26,11 +26,23 @@ export const metaConfigured = () => !!process.env.META_ACCESS_TOKEN?.trim();
 const clip = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value);
 const firstLine = (values?: string[]) => values?.find((value) => value?.trim())?.trim() ?? "";
 
-/** Groups the results' ads by advertiser and headline (or text), so each ad knows how many versions run. */
+/** The ad's text reduced to letters and digits, so copies with different emoji or spacing match. */
+const copyOf = (ad: ArchiveAd) =>
+  (firstLine(ad.ad_creative_bodies) || firstLine(ad.ad_creative_link_titles)).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().slice(0, 120);
+
+/**
+ * Groups the results' ads by advertiser and headline (or text), so each ad knows how many versions run,
+ * and counts how many different pages run the same text: one seller's network of throwaway pages.
+ */
 export function summariseAds(ads: ArchiveAd[], now = Date.now()): MetaAd[] {
   const key = (ad: ArchiveAd) => `${ad.page_id ?? ad.page_name}::${(firstLine(ad.ad_creative_link_titles) || firstLine(ad.ad_creative_bodies)).toLowerCase().slice(0, 80)}`;
   const counts = new Map<string, number>();
   for (const ad of ads) counts.set(key(ad), (counts.get(key(ad)) ?? 0) + 1);
+  const pagesByCopy = new Map<string, Set<string>>();
+  for (const ad of ads) {
+    const copy = copyOf(ad);
+    if (copy.length >= 20) pagesByCopy.set(copy, (pagesByCopy.get(copy) ?? new Set()).add(ad.page_id ?? ad.page_name ?? ""));
+  }
   const seen = new Set<string>();
   return ads
     .filter((ad) => { const id = key(ad); if (seen.has(id)) return false; seen.add(id); return true; })
@@ -44,19 +56,32 @@ export function summariseAds(ads: ArchiveAd[], now = Date.now()): MetaAd[] {
         url: `https://www.facebook.com/ads/library/?id=${encodeURIComponent(ad.id)}`,
         startedAt, daysRunning: daysSince(startedAt, now), reach: typeof ad.eu_total_reach === "number" ? ad.eu_total_reach : null,
         versions: counts.get(key(ad)) ?? 1, platforms: ad.publisher_platforms ?? [],
+        // Short or missing text says nothing about who runs it, so it isn't grouped with anything.
+        copyKey: copyOf(ad).length >= 20 ? copyOf(ad) : `ad:${ad.id}`, pages: pagesByCopy.get(copyOf(ad))?.size ?? 1,
       };
     })
     // Long-running ads with many versions first: the usual signs an advertiser is making money.
     .sort((a, b) => (b.daysRunning ?? 0) * Math.min(b.versions, 5) - (a.daysRunning ?? 0) * Math.min(a.versions, 5));
 }
 
-export async function searchMetaAds(terms: string): Promise<MetaSearch> {
+/** Meta's date format, `days` before `now` (UTC). */
+const daysBefore = (days: number, now: number) => new Date(now - days * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Searches active ads. Without a filter Meta returns the newest ads first, so 100 results are mostly ads
+ * started in the last day or two. `minDays` asks Meta only for ads that started at least that long ago,
+ * and `media` for image or video ads.
+ */
+export async function searchMetaAds(terms: string, filters: MetaFilters = {}, now = Date.now()): Promise<MetaSearch> {
+  const { minDays, media } = metaFilters(filters);
   const token = process.env.META_ACCESS_TOKEN?.trim();
   if (!token) return { status: "not_configured", message: "Add META_ACCESS_TOKEN to this environment to search Meta from here." };
   const params = new URLSearchParams({
     search_terms: terms, ad_reached_countries: JSON.stringify(META_COUNTRIES), ad_active_status: "ACTIVE",
     ad_type: "ALL", fields: FIELDS, limit: "100",
   });
+  if (minDays > 0) params.set("ad_delivery_date_max", daysBefore(minDays, now));
+  if (media !== "ALL") params.set("media_type", media);
   let response: Response;
   try {
     response = await fetch(`${GRAPH}/ads_archive?${params}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(20_000) });
@@ -72,5 +97,5 @@ export async function searchMetaAds(terms: string): Promise<MetaSearch> {
     if (code === 190) return { status: "token_expired", message: "The Meta access token has expired. Create a new one and update META_ACCESS_TOKEN." };
     return { status: "error", message: "Meta couldn't run that search. Try different words." };
   }
-  return { status: "ok", ads: summariseAds(body.data ?? []), countries: [...META_COUNTRIES] };
+  return { status: "ok", ads: summariseAds(body.data ?? [], now), countries: [...META_COUNTRIES] };
 }

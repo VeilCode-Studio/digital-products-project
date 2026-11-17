@@ -122,6 +122,39 @@ describe("Meta Ad Library", () => {
     fetch.mockImplementation(async () => Response.json({ error: { code: 190 } }, { status: 400 }));
     expect(await searchMetaAds("lamp")).toMatchObject({ status: "token_expired" });
   });
+
+  it("asks Meta for older ads and one media type, and ignores unknown filters", async () => {
+    vi.stubEnv("META_ACCESS_TOKEN", "meta-token");
+    const fetch = vi.fn(async () => Response.json({ data: [] }));
+    vi.stubGlobal("fetch", fetch);
+    const now = Date.parse("2026-11-17T12:00:00Z");
+    await searchMetaAds("lamp", { minDays: 30, media: "VIDEO" }, now);
+    const filtered = new URL((fetch.mock.calls[0] as unknown as [string])[0]).searchParams;
+    expect(filtered.get("ad_delivery_date_max")).toBe("2026-10-18");
+    expect(filtered.get("media_type")).toBe("VIDEO");
+
+    await searchMetaAds("lamp", { minDays: 45, media: "MEME" } as never, now);
+    const plain = new URL((fetch.mock.calls[1] as unknown as [string])[0]).searchParams;
+    expect(plain.has("ad_delivery_date_max")).toBe(false);
+    expect(plain.has("media_type")).toBe(false);
+  });
+
+  it("counts the pages running the same text, whatever the emoji or spacing", () => {
+    const copy = "Stand Taller & Feel More Supported! Improve your daily posture";
+    const ads = summariseAds([
+      { id: "1", page_id: "p1", page_name: "Bamaxisboon", ad_creative_bodies: [`💪✨ ${copy}`], ad_delivery_start_time: "2026-11-15" },
+      { id: "2", page_id: "p2", page_name: "Comparisonk", ad_creative_bodies: [copy.toUpperCase()], ad_delivery_start_time: "2026-11-16" },
+      { id: "3", page_id: "p3", page_name: "Other", ad_creative_bodies: ["Something different entirely, about lamps"], ad_delivery_start_time: "2026-11-16" },
+      { id: "4", page_id: "p4", page_name: "Short", ad_creative_bodies: ["Buy now"] },
+      { id: "5", page_id: "p5", page_name: "Short too", ad_creative_bodies: ["Buy now"] },
+    ], Date.parse("2026-11-17T12:00:00Z"));
+    const byId = Object.fromEntries(ads.map((ad) => [ad.id, ad]));
+    expect(byId["1"].pages).toBe(2);
+    expect(byId["1"].copyKey).toBe(byId["2"].copyKey);
+    expect(byId["3"].pages).toBe(1);
+    // Short text isn't evidence of one seller, so it isn't grouped.
+    expect(byId["4"].copyKey).not.toBe(byId["5"].copyKey);
+  });
 });
 
 describe("CJ Dropshipping", () => {

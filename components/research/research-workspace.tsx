@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowUpRight, Clock3, Copy, Layers, Loader2, Plus, Search, Store, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight, Clock3, Copy, Layers, Loader2, Plus, Search, Store, TrendingUp, Users } from "lucide-react";
 import {
-  longestRunning, STAGE_HINTS, STAGE_LABELS, STAGES, unitEconomics,
-  type CjProduct, type MetaAd, type MetaSearch, type ResearchCard, type ResearchProduct,
+  longestRunning, META_MEDIA, META_MIN_DAYS, STAGE_HINTS, STAGE_LABELS, STAGES, unitEconomics,
+  type CjProduct, type MetaAd, type MetaFilters, type MetaSearch, type ResearchCard, type ResearchProduct,
 } from "@/lib/research.types";
 import { dollars, metaLibraryUrl, researchApi } from "./api";
 import { ResearchDrawer } from "./research-drawer";
@@ -20,6 +20,47 @@ const elsewhere = (query: string) => [
   { label: "Amazon", href: `https://www.amazon.com/s?${new URLSearchParams({ k: query })}` },
 ];
 
+/** How the Meta results are narrowed. Days and media go to Meta with the search; the rest sort the results here. */
+type AdFilters = Required<MetaFilters> & { minVersions: 1 | 3 | 5; collapse: boolean; sort: "signal" | "days" | "reach" };
+const DEFAULT_FILTERS: AdFilters = { minDays: 0, media: "ALL", minVersions: 1, collapse: true, sort: "signal" };
+const FILTERS_KEY = "veilcode:research-ad-filters";
+const MEDIA_LABELS = { ALL: "Any media", VIDEO: "Video", IMAGE: "Image" } as const;
+
+function readFilters(): AdFilters {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FILTERS_KEY) ?? "{}") as Partial<AdFilters>;
+    return {
+      minDays: (META_MIN_DAYS as readonly unknown[]).includes(saved.minDays) ? saved.minDays! : DEFAULT_FILTERS.minDays,
+      media: (META_MEDIA as readonly unknown[]).includes(saved.media) ? saved.media! : DEFAULT_FILTERS.media,
+      minVersions: ([1, 3, 5] as unknown[]).includes(saved.minVersions) ? saved.minVersions! : DEFAULT_FILTERS.minVersions,
+      collapse: typeof saved.collapse === "boolean" ? saved.collapse : DEFAULT_FILTERS.collapse,
+      sort: (["signal", "days", "reach"] as unknown[]).includes(saved.sort) ? saved.sort! : DEFAULT_FILTERS.sort,
+    };
+  } catch { return DEFAULT_FILTERS; }
+}
+
+/** One card per ad text when `collapse` is on: copies on other pages add to its versions and reach. */
+function visibleAds(ads: MetaAd[], filters: AdFilters) {
+  let list = ads;
+  if (filters.collapse) {
+    const groups = new Map<string, MetaAd>();
+    for (const ad of ads) {
+      const lead = groups.get(ad.copyKey);
+      if (!lead) groups.set(ad.copyKey, ad);
+      else {
+        const better = (ad.daysRunning ?? 0) > (lead.daysRunning ?? 0) ? ad : lead;
+        groups.set(ad.copyKey, { ...better, versions: lead.versions + ad.versions, reach: (lead.reach ?? 0) + (ad.reach ?? 0) || null });
+      }
+    }
+    list = [...groups.values()];
+  }
+  const score = (ad: MetaAd) => filters.sort === "days" ? ad.daysRunning ?? 0
+    : filters.sort === "reach" ? ad.reach ?? -1
+    // Long-running ads with many versions, run from several pages: the usual signs of a profitable ad.
+    : (ad.daysRunning ?? 0) * Math.min(ad.versions, 5) * Math.min(ad.pages, 3) + ad.versions;
+  return list.filter((ad) => ad.versions >= filters.minVersions).sort((a, b) => score(b) - score(a));
+}
+
 export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: ResearchCard[]; meta: boolean; cj: boolean }) {
   const [items, setItems] = useState(initialItems);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -29,8 +70,14 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [metaResult, setMetaResult] = useState<MetaSearch | null>(null);
+  const [filters, setFilters] = useState<AdFilters>(DEFAULT_FILTERS);
   const [cjResult, setCjResult] = useState<CjProduct[] | null>(null);
   const [manual, setManual] = useState<{ title: string; url: string; kind: "physical" | "digital" }>({ title: "", url: "", kind: "physical" });
+
+  // The last filters used in this browser. localStorage is only readable after hydration.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setFilters(readFilters()); }, []);
+  const ads = useMemo(() => metaResult?.status === "ok" ? visibleAds(metaResult.ads, filters) : [], [metaResult, filters]);
 
   const byStage = useMemo(() => Object.fromEntries(STAGES.map((stage) => [stage, items.filter((item) => item.stage === stage)])), [items]);
   const open = items.find((item) => item.id === openId) ?? null;
@@ -49,12 +96,26 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
     try { await task(); } catch (failure) { setError(failure instanceof Error ? failure.message : "Something went wrong."); } finally { setPending(null); }
   }
 
+  function searchMeta(terms: string, using: AdFilters) {
+    void run("search", async () => {
+      setMetaResult(await researchApi<MetaSearch>({ action: "meta-search", query: terms, filters: { minDays: using.minDays, media: using.media } }));
+    });
+  }
+
+  /** Changes a filter. Days and media are applied by Meta, so they search again. */
+  function filter(change: Partial<AdFilters>) {
+    const next = { ...filters, ...change };
+    setFilters(next);
+    try { localStorage.setItem(FILTERS_KEY, JSON.stringify(next)); } catch { /* Not remembered; the filter still applies now. */ }
+    if (searched && tab === "meta" && ("minDays" in change || "media" in change)) searchMeta(searched, next);
+  }
+
   function search(event: React.FormEvent) {
     event.preventDefault();
     const terms = query.trim();
     if (terms.length < 2) return;
     setSearched(terms);
-    if (tab === "meta") void run("search", async () => { setMetaResult(await researchApi<MetaSearch>({ action: "meta-search", query: terms })); });
+    if (tab === "meta") searchMeta(terms, filters);
     if (tab === "cj") void run("search", async () => { setCjResult((await researchApi<{ products: CjProduct[] }>({ action: "cj-search", query: terms })).products); });
   }
 
@@ -123,6 +184,35 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
         <button className="button primary" disabled={pending === "manual" || !manual.title.trim()}><Plus size={16} /> Save to board</button>
       </form>}
 
+      {tab === "meta" && meta && <div className="research-filters" role="group" aria-label="Filter ads">
+        <label>Running
+          <select value={filters.minDays} onChange={(event) => filter({ minDays: Number(event.target.value) as AdFilters["minDays"] })}>
+            {META_MIN_DAYS.map((days) => <option key={days} value={days}>{days === 0 ? "Any time" : `${days}+ days`}</option>)}
+          </select>
+        </label>
+        <label>Media
+          <select value={filters.media} onChange={(event) => filter({ media: event.target.value as AdFilters["media"] })}>
+            {META_MEDIA.map((media) => <option key={media} value={media}>{MEDIA_LABELS[media]}</option>)}
+          </select>
+        </label>
+        <label>Versions
+          <select value={filters.minVersions} onChange={(event) => filter({ minVersions: Number(event.target.value) as AdFilters["minVersions"] })}>
+            {([1, 3, 5] as const).map((count) => <option key={count} value={count}>{count === 1 ? "Any" : `${count}+`}</option>)}
+          </select>
+        </label>
+        <label>Sort
+          <select value={filters.sort} onChange={(event) => filter({ sort: event.target.value as AdFilters["sort"] })}>
+            <option value="signal">Strongest signal</option>
+            <option value="days">Longest running</option>
+            <option value="reach">Most reach</option>
+          </select>
+        </label>
+        <label className="research-filter-check">
+          <input type="checkbox" checked={filters.collapse} onChange={(event) => filter({ collapse: event.target.checked })} />
+          Group copycat pages
+        </label>
+      </div>}
+
       {error && <p className="form-error" role="alert">{error}</p>}
       {tab === "meta" && !meta && <p className="research-note">Meta search needs <code>META_ACCESS_TOKEN</code> in this environment. You can still open Meta&apos;s Ad Library below.</p>}
       {tab === "cj" && !cj && <p className="research-note">CJ search needs <code>CJ_API_KEY</code> in this environment.</p>}
@@ -135,13 +225,18 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
       {tab === "meta" && metaResult && (metaResult.status !== "ok"
         ? <div className="research-note warn" role="status">{metaResult.message} Meaning to look at US ads? Use “Meta Ad Library (US)” above, or ask Claude to search and save them for you.</div>
         : metaResult.ads.length === 0
-          ? <p className="research-note">No active UK or EU ads matched. Try a broader phrase.</p>
-          : <div className="research-results">{metaResult.ads.slice(0, 30).map((ad) => (
+          ? <p className="research-note">No active UK or EU ads matched{filters.minDays || filters.media !== "ALL" ? " these filters" : ""}. Try a broader phrase{filters.minDays || filters.media !== "ALL" ? " or fewer filters" : ""}.</p>
+          : ads.length === 0
+            ? <p className="research-note">None of the {metaResult.ads.length} ads found has {filters.minVersions}+ versions. Lower the Versions filter.</p>
+            : <>
+          <p className="research-count">Showing {Math.min(ads.length, 30)} of {ads.length}{ads.length !== metaResult.ads.length ? ` (grouped from ${metaResult.ads.length} ads)` : ""}{filters.minDays ? `, all running ${filters.minDays}+ days` : ""}.</p>
+          <div className="research-results">{ads.slice(0, 30).map((ad) => (
             <article key={ad.id} className="research-ad">
               <header><strong>{ad.page}</strong>{ad.platforms.length > 0 && <span>{ad.platforms.map((platform) => platform.toLowerCase()).join(" · ")}</span>}</header>
               <div className="research-signals">
                 {ad.daysRunning !== null && <span className={ad.daysRunning >= 30 ? "signal strong" : "signal"}><Clock3 size={13} /> {ad.daysRunning} days</span>}
                 {ad.versions > 1 && <span className={ad.versions >= 3 ? "signal strong" : "signal"}><Copy size={13} /> {ad.versions} versions</span>}
+                {ad.pages > 1 && <span className="signal strong" title="Different pages run this same text, usually one seller testing at scale."><Users size={13} /> {ad.pages} pages</span>}
                 {ad.reach !== null && <span className="signal"><TrendingUp size={13} /> {compact.format(ad.reach)} reached</span>}
               </div>
               {ad.title && <p className="research-ad-title">{ad.title}</p>}
@@ -153,7 +248,8 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
                 </button>
               </footer>
             </article>
-          ))}</div>)}
+          ))}</div>
+        </>)}
 
       {tab === "cj" && cjResult && (cjResult.length === 0
         ? <p className="research-note">CJ has nothing for that search. Try simpler words.</p>
