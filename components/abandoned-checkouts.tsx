@@ -16,7 +16,7 @@ function followUp(entry: AbandonedCheckout, storeName: string) {
 }
 
 export function AbandonedCheckouts({ entries, storeName }: { entries: AbandonedCheckout[]; storeName: string }) {
-  if (!entries.length) return <div className="empty-state compact"><ShoppingCart size={26} aria-hidden /><h3>No abandoned checkouts</h3><p>Carts that expire unpaid show up here for 30 days, with a link that reopens them.</p></div>;
+  if (!entries.length) return <div className="empty-state compact"><ShoppingCart size={26} aria-hidden /><h3>No abandoned checkouts</h3><p>When a shopper leaves checkout without paying, their cart appears here about a day later.</p></div>;
   return <ul className="abandoned-list">
     {entries.map((entry) => <li key={entry.id} className="abandoned-row">
       <div className="abandoned-what">
@@ -24,7 +24,7 @@ export function AbandonedCheckouts({ entries, storeName }: { entries: AbandonedC
         <span>{entry.kind === "physical" ? `/s/${entry.productSlug}` : `/p/${entry.productSlug}`} · expired {dates.format(new Date(entry.expiredAt))}</span>
       </div>
       <strong className="abandoned-amount">{money(entry.amount, entry.currency)}</strong>
-      <span className="abandoned-email">{entry.email ?? <em>No email: the shopper didn&apos;t opt in to updates</em>}</span>
+      <span className="abandoned-email">{entry.email ?? <em>No email shared</em>}</span>
       <div className="catalog-actions">
         {entry.recoveryUrl && <button type="button" className="button secondary small" onClick={async () => {
           await navigator.clipboard.writeText(entry.recoveryUrl!); toast.success("Recovery link copied", { description: "It reopens this cart until 30 days after it expired." });

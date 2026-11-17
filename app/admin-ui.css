@@ -175,7 +175,9 @@
 @media (max-width: 600px) { .catalog-actions { width: 100%; } .catalog-actions .button { flex: 1; } }
 
 /* Abandoned checkouts (Orders) */
-.panel-intro { margin: -4px 0 16px; color: var(--muted); font-size: 14px; }
+.abandoned-count { flex: none; padding: 5px 11px; border-radius: 999px; background: var(--ad-wash, #eef2ff); color: var(--ad-cobalt-deep, #1d3fcc); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.admin-shell .abandoned-list { padding: 4px 26px 10px; }
+.admin-shell .abandoned-row:first-child { border-top: 0; }
 .abandoned-list { display: grid; margin: 0; padding: 0; list-style: none; }
 .abandoned-row { display: grid; grid-template-columns: minmax(0, 2fr) auto minmax(0, 1.4fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
 .abandoned-what { display: grid; gap: 3px; min-width: 0; }
@@ -186,4 +188,5 @@
 @media (max-width: 760px) {
   .abandoned-row { grid-template-columns: 1fr auto; }
   .abandoned-email, .abandoned-row .catalog-actions { grid-column: 1 / -1; }
+  .admin-shell .abandoned-list { padding: 4px 18px 10px; }
 }
