@@ -77,8 +77,9 @@ export function TrendChart({ points, currency, granularity }: { points: TrendPoi
         <small>Previous: {format(before(active))}</small>
       </div>}
     </div>
-    <table className="an-sr"><caption>{metric === "revenue" ? "Revenue" : "Orders"} per {granularity}</caption><thead><tr><th>Period</th><th>This period</th><th>Previous period</th></tr></thead>
-      <tbody>{points.map((point) => <tr key={point.key}><td>{point.label}</td><td>{format(value(point))}</td><td>{format(before(point))}</td></tr>)}</tbody></table>
+    {/* Hidden data for screen readers. The wrapper does the hiding: a table ignores a fixed height, so it would push the page longer. */}
+    <div className="an-sr"><table><caption>{metric === "revenue" ? "Revenue" : "Orders"} per {granularity}</caption><thead><tr><th>Period</th><th>This period</th><th>Previous period</th></tr></thead>
+      <tbody>{points.map((point) => <tr key={point.key}><td>{point.label}</td><td>{format(value(point))}</td><td>{format(before(point))}</td></tr>)}</tbody></table></div>
   </div>;
 }
 

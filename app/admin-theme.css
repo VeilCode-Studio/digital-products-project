@@ -329,7 +329,7 @@
 .admin-shell .an-note { margin: -6px 0 18px; font-size: 12px; color: var(--ad-soft); }
 
 .admin-shell .an-trend { margin-bottom: 20px; }
-.admin-shell .an-chart { padding: 0 24px 22px; }
+.admin-shell .an-chart { position: relative; padding: 0 24px 22px; }
 .admin-shell .an-chart-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .admin-shell .an-legend { display: flex; gap: 16px; font-size: 12px; color: var(--ad-soft); }
 .admin-shell .an-legend span { display: inline-flex; align-items: center; gap: 6px; }
