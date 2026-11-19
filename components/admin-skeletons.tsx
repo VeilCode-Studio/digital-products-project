@@ -182,6 +182,15 @@ export function SkReviews() {
   </Busy>;
 }
 
+export function SkMargins() {
+  return <Busy label="Loading margins">
+    <SkHeading eyebrow="WHAT EACH SALE REALLY EARNS" title="Margins" text="Supplier costs for every physical variant, the margin they leave, and which supplier prices are due a check." />
+    <div className="an-kpis">{[0, 1, 2, 3].map((index) => <div className="an-kpi" key={index}><Bone w={100} h={11} /><Bone w={40} h={26} className="sk-gap" /><Bone w={130} h={10} className="sk-gap" /></div>)}</div>
+    {[0, 1].map((panel) => <section className="workspace-panel" key={panel}><div className="panel-heading"><Bone w={200} h={16} /><Bone w={90} h={12} /></div>
+      {Array.from({ length: 3 }, (_, index) => <div className="sk-line-row" key={index}><div className="sk-grow"><Bone w="30%" h={14} /><Bone w="20%" h={10} className="sk-gap" /></div><Bone w={90} h={36} r={10} /><Bone w={90} h={36} r={10} /><Bone w={60} h={22} r={999} /><Bone w={80} h={32} r={10} /></div>)}</section>)}
+  </Busy>;
+}
+
 /** Any other workspace page: a heading and a panel of rows. */
 export function SkGeneric() {
   return <Busy label="Loading your workspace">

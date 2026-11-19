@@ -89,7 +89,7 @@ export async function searchCj(keyword: string): Promise<CjProduct[]> {
     }));
 }
 
-type Detail = { pid?: string; productNameEn?: string; bigImage?: string; sellPrice?: number | string; variants?: { vid?: string; variantSellPrice?: number | string }[] };
+type Detail = { pid?: string; productNameEn?: string; bigImage?: string; sellPrice?: number | string; variants?: { vid?: string; variantSku?: string; variantSellPrice?: number | string }[] };
 type Freight = { logisticName?: string; logisticPrice?: number | string; logisticAging?: string }[];
 
 /** A product's lowest variant cost and the cheapest CJ shipping for it to the US. */
@@ -119,4 +119,29 @@ export async function cjDetail(pid: string): Promise<CjDetail> {
     cost, shipping: shipping?.cost ?? null, shippingName: shipping?.name ?? null, days: shipping?.days ?? null,
     image: product.bigImage?.startsWith("https://") ? product.bigImage : null, variants: variants.length,
   };
+}
+
+/** CJ's product id from a product page address (…-p-<pid>.html), or null for other links. */
+export function cjPidFromUrl(url: string | null) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (!/(^|\.)cjdropshipping\.com$/.test(parsed.hostname)) return null;
+    return decodeURIComponent(parsed.pathname).match(/-p-([A-Za-z0-9-]{1,64})\.html$/)?.[1] ?? null;
+  } catch { return null; }
+}
+
+/** Every variant's current CJ price, for the daily margin check (lib/margins.ts). Null when CJ no longer lists it. */
+export async function cjVariantPrices(pid: string): Promise<{ vid: string; sku: string | null; cost: number }[] | null> {
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(pid)) return null;
+  const product = await cj<Detail>(`/product/query?${new URLSearchParams({ pid })}`).catch((error) => {
+    if (error instanceof HttpError && error.status === 502) return null;
+    throw error;
+  });
+  if (!product) return null;
+  const variants = (product.variants ?? []).map((variant) => ({ vid: variant.vid ?? "", sku: variant.variantSku ?? null, cost: toCents(variant.variantSellPrice) }))
+    .filter((variant): variant is { vid: string; sku: string | null; cost: number } => !!variant.vid && variant.cost !== null);
+  if (variants.length) return variants;
+  const cost = toCents(product.sellPrice);
+  return cost === null ? [] : [{ vid: pid, sku: null, cost }];
 }

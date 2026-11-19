@@ -43,6 +43,9 @@ export type ProductVariant = {
   options: Record<string, string>; sku: string | null;
   price_amount: number; compare_at_amount: number | null; image_path: string | null; active: boolean;
   supplier_url: string | null; supplier_sku: string | null; created_at: string; updated_at: string;
+  /** Supplier costs and margin watch (lib/margins.ts), in the product's currency. */
+  unit_cost?: number | null; supplier_shipping?: number | null; cost_source?: "manual" | "order" | "cj" | null; cost_updated_at?: string | null;
+  supplier_checked_at?: string | null; supplier_price_seen?: number | null; supplier_alert?: string | null;
 };
 export type ShippingProfile = { id: string; store_id: string; name: string; created_at: string };
 export type ShippingRate = {

@@ -1,4 +1,5 @@
 import "server-only";
+import { learnFromOrder } from "./margins";
 import { getSupabase } from "./supabase";
 import { HttpError } from "./http";
 import { STORE_ID } from "./store-config";
@@ -14,7 +15,7 @@ import type { FulfillmentStatus, Order } from "./database.types";
 export const FULFILLMENT_STATUSES: FulfillmentStatus[] = ["needs_ordering", "ordered", "shipped", "delivered", "cancelled"];
 
 export type FulfillmentAction =
-  | { action: "ordered"; supplierRef: string }
+  | { action: "ordered"; supplierRef: string; supplierCost: number | null }
   | { action: "shipped"; carrier: string; trackingNumber: string; trackingUrl: string; notify: boolean }
   | { action: "delivered" }
   | { action: "cancelled"; refund: boolean }
@@ -44,7 +45,16 @@ function plain(value: unknown, label: string, max: number, required = false) {
 /** Parses an owner's request into one allowed action, rejecting anything else. */
 export function parseFulfillmentAction(body: Record<string, unknown>): FulfillmentAction {
   switch (body.action) {
-    case "ordered": return { action: "ordered", supplierRef: plain(body.supplierRef, "Supplier order number", 200) };
+    case "ordered": {
+      const raw = body.supplierCost;
+      let supplierCost: number | null = null;
+      if (raw !== null && raw !== undefined && raw !== "") {
+        const amount = Number(raw);
+        if (!Number.isFinite(amount) || amount < 0 || amount > 100_000) throw new HttpError(400, "What you paid the supplier must be an amount from 0.");
+        supplierCost = Math.round(amount * 100);
+      }
+      return { action: "ordered", supplierRef: plain(body.supplierRef, "Supplier order number", 200), supplierCost };
+    }
     case "shipped": {
       const trackingNumber = plain(body.trackingNumber, "Tracking number", 100, true).replace(/\s+/g, "");
       if (!/^[A-Za-z0-9-]{4,100}$/.test(trackingNumber)) throw new HttpError(400, "Tracking numbers use letters, numbers and dashes only.");
@@ -110,7 +120,7 @@ export async function applyFulfillment(orderId: string, expected: FulfillmentSta
   let emailTracking = false;
   switch (input.action) {
     case "ordered":
-      changes = { fulfillment_status: "ordered", supplier_order_ref: input.supplierRef || null, ordered_at: order.ordered_at ?? now };
+      changes = { fulfillment_status: "ordered", supplier_order_ref: input.supplierRef || null, ordered_at: order.ordered_at ?? now, ...(input.supplierCost !== null ? { supplier_cost: input.supplierCost } : {}) };
       break;
     case "shipped": {
       const trackingChanged = input.trackingNumber !== order.tracking_number;
@@ -138,6 +148,9 @@ export async function applyFulfillment(orderId: string, expected: FulfillmentSta
     if (!data) throw new HttpError(409, "This order changed in another tab. Reload to see its latest status.");
     updated = data as Order;
   }
+
+  // What was really paid becomes the variants' cost, so margins stay true (lib/margins.ts).
+  if (input.action === "ordered" && input.supplierCost !== null) await learnFromOrder(updated, input.supplierCost).catch(() => console.error("Could not update variant costs"));
 
   if (emailTracking) {
     try {

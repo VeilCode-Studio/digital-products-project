@@ -129,9 +129,11 @@ export function FulfillmentActions({ orderId, orderRef, customer, status, suppli
     {status === "needs_ordering" && <>
       <form className="fulfil-form" onSubmit={(event) => {
         event.preventDefault();
-        send("ordered", { supplierRef: new FormData(event.currentTarget).get("supplierRef") }, "Marked as ordered.");
+        const form = new FormData(event.currentTarget);
+        send("ordered", { supplierRef: form.get("supplierRef"), supplierCost: form.get("supplierCost") }, "Marked as ordered.");
       }}>
         <label>Supplier order number <span className="optional">Optional</span><input name="supplierRef" maxLength={200} autoComplete="off" placeholder="e.g. AliExpress order 8123…" /></label>
+        <label>What you paid the supplier <span className="optional">Optional, incl. their shipping</span><input name="supplierCost" type="number" inputMode="decimal" min={0} step="0.01" placeholder="e.g. 14.80" /></label>
         <button className="button primary small" disabled={!!pending}><ShoppingCart size={14} />{pending === "ordered" ? "Saving…" : "Mark as ordered"}</button>
       </form>
       <div className="fulfil-row">

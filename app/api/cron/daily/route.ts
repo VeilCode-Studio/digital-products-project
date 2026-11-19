@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { sendReviewRequests } from "@/lib/reviews";
+import { checkCjPrices } from "@/lib/margins";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const results: Record<string, unknown> = {};
-  const tasks: [string, () => Promise<unknown>][] = [["reviewRequests", () => sendReviewRequests()]];
+  const tasks: [string, () => Promise<unknown>][] = [["reviewRequests", () => sendReviewRequests()], ["cjPrices", () => checkCjPrices()]];
   for (const [name, task] of tasks) {
     try { results[name] = await task(); }
     catch (error) { console.error(`Daily task failed: ${name}`, error instanceof Error ? error.message.slice(0, 200) : ""); results[name] = { error: true }; }

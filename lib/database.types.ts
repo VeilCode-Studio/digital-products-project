@@ -1,4 +1,4 @@
-import type { CatalogProduct, Checkout, Store, DeliveryProduct, PhysicalSnapshot, ShippingAddress } from "./catalog.types";
+import type { CatalogProduct, Checkout, Store, DeliveryProduct, PhysicalSnapshot, ProductVariant, ShippingAddress } from "./catalog.types";
 import type { PaymentConnection, PaymentOAuthAttempt, ProductPaymentRef } from "./payment.types";
 import type { RateInput, VariantInput } from "./store-input";
 import type { ResearchProduct } from "./research.types";
@@ -38,6 +38,8 @@ export type Order = {
   /** The single review request (lib/reviews.ts): when it was sent, and its link's hash. */
   review_requested_at?: string | null;
   review_token_hash?: string | null;
+  /** What the owner paid the supplier for this order (lib/margins.ts). */
+  supplier_cost?: number | null;
   currency: string | null;
   /** Null for physical orders, which have no download. */
   download_token_hash: string | null;
@@ -101,6 +103,7 @@ export type Database = {
       discount_codes: { Row: DiscountCode; Insert: Omit<DiscountCode, "id" | "active" | "created_at" | "updated_at"> & Partial<DiscountCode>; Update: Partial<DiscountCode>; Relationships: [] };
       short_link_clicks: { Row: ShortLinkClick; Insert: Pick<ShortLinkClick, "link_id"> & Partial<ShortLinkClick>; Update: Partial<ShortLinkClick>; Relationships: [] };
       stores: { Row: Store; Insert: Store; Update: Partial<Store>; Relationships: [] };
+      product_variants: { Row: ProductVariant; Insert: Pick<ProductVariant, "id" | "store_id" | "product_id" | "price_amount"> & Partial<ProductVariant>; Update: Partial<ProductVariant>; Relationships: [] };
       products: { Row: CatalogProduct; Insert: Pick<CatalogProduct, "id" | "store_id" | "slug" | "name"> & Partial<CatalogProduct>; Update: Partial<CatalogProduct>; Relationships: [] };
       checkouts: { Row: Checkout; Insert: Omit<Checkout, "created_at"> & { created_at?: string }; Update: Partial<Checkout>; Relationships: [] };
       orders: {

@@ -451,3 +451,21 @@
   .admin-shell .sl-create > .button { justify-self: stretch; }
   .admin-shell .sl-table th, .admin-shell .sl-table td { padding-inline: 16px; }
 }
+
+/* Margins page (components/margins-view.tsx). */
+.admin-shell .mg-table td { vertical-align: top; }
+.admin-shell .mg-table small { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.admin-shell .mg-money { display: flex; align-items: center; gap: 6px; height: 38px; width: 120px; padding: 0 10px; border: 1px solid var(--ad-edge); border-radius: 10px; background: #fff; }
+.admin-shell .mg-money span { font-size: 11px; font-weight: 600; color: var(--ad-soft); }
+.admin-shell .mg-money input { width: 100%; min-width: 0; height: 100%; border: 0; padding: 0; background: transparent; font: inherit; font-size: 13.5px; color: var(--ad-text); }
+.admin-shell .mg-money input:focus { outline: none; }
+.admin-shell .mg-money:focus-within { border-color: var(--ad-cobalt); box-shadow: 0 0 0 3px rgba(43, 89, 255, .14); }
+.admin-shell .mg-badge { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 650; }
+.admin-shell .mg-badge.is-good { background: #e3f6ea; color: #067647; }
+.admin-shell .mg-badge.is-warn { background: #fff3d6; color: #93610a; }
+.admin-shell .mg-badge.is-bad { background: #fde7e5; color: #b42318; }
+.admin-shell .mg-badge.is-none { background: var(--ad-canvas); color: var(--ad-soft); font-weight: 560; }
+.admin-shell .mg-table small.mg-alert { color: #b42318; font-weight: 560; }
+.admin-shell .mg-table small.mg-due { color: #93610a; font-weight: 600; }
+.admin-shell .mg-supplier { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ad-cobalt); }
+.admin-shell .mg-flag td:first-child { box-shadow: inset 3px 0 0 #f04438; }
