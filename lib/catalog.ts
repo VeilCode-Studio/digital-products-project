@@ -1,15 +1,17 @@
 import "server-only";
+import { cache } from "react";
 import { getSupabase } from "./supabase";
 import { STORE_ID } from "./store-config";
 import type { CatalogProduct, DeliveryProduct, ProductKind } from "./catalog.types";
 import { getProduct } from "./products";
 import { ownerUser } from "./auth";
 
-export async function getStore() {
+/** Cached per request, since the workspace layout and its page can both need it. */
+export const getStore = cache(async function getStore() {
   const { data, error } = await getSupabase().from("stores").select("*").eq("id", STORE_ID).single();
   if (error || !data) throw new Error("Store unavailable. Apply the storefront migration.");
   return data;
-}
+});
 export async function listProducts(published = false, kind?: ProductKind) {
   let query = getSupabase().from("products").select("*").eq("store_id", STORE_ID);
   if (published) query = query.eq("status", "published");

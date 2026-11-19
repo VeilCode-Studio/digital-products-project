@@ -9,14 +9,15 @@ import { resetFakes, seedProduct, storageExists } from "./fakes";
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "fixture-token" }) }) }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
+  usePathname: () => "/admin",
   redirect: (url: string) => { throw new Error(`Redirect: ${url}`); },
   notFound: () => { throw new Error("Not found"); },
 }));
 
 import Home from "../app/page";
-import Dashboard from "../app/admin/page";
+import Dashboard from "../app/admin/(workspace)/(overview)/page";
 import ProductPage from "../app/p/[slug]/page";
-import EditProduct from "../app/admin/products/[id]/page";
+import EditProduct from "../app/admin/(workspace)/products/[id]/page";
 import { AdminShell } from "../components/admin-shell";
 import { PaymentSettings } from "../components/payment-settings";
 

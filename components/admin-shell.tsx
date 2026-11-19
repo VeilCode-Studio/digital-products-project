@@ -1,25 +1,29 @@
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
-import { LayoutDashboard, Package, Plug, Radar, Receipt, Settings, ArrowUpRight, Store, Truck } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Brand } from "./store";
 import { AdminProfileMenu, SignOutButton } from "./admin-account-menu";
+import { AdminNav, AdminNavProvider } from "./admin-nav";
 import { ownerProfile } from "@/lib/owner-profile";
 import { monaSans } from "@/app/studio-fonts";
 
-// The sidebar, in the order the work flows: find, sell, fulfil, then the assistants and settings.
-const links = [{ href: "/admin", label: "Overview", Icon: LayoutDashboard }, { href: "/admin/research", label: "Research", Icon: Radar }, { href: "/admin/products", label: "Digital products", Icon: Package }, { href: "/admin/stores", label: "Physical stores", Icon: Store }, { href: "/admin/orders", label: "Orders", Icon: Receipt }, { href: "/admin/fulfillment", label: "Fulfilment", Icon: Truck }, { href: "/admin/connections", label: "Connections", Icon: Plug }, { href: "/admin/settings", label: "Store settings", Icon: Settings }];
-export function AdminShell({ children, active, storeName = "PodStore", owner }: {
+/**
+ * The workspace frame: sidebar, top bar and content area. It is rendered once by the workspace layout
+ * (app/admin/(workspace)/layout.tsx), so it stays put while pages and their loading states swap inside it.
+ */
+export function AdminShell({ children, storeName = "PodStore", owner }: {
   children: React.ReactNode;
-  active: string;
+  /** Older callers named the active link; the nav now reads it from the URL. */
+  active?: string;
   storeName?: string;
   owner?: Pick<User, "email" | "user_metadata">;
 }) {
   const profile = ownerProfile(owner);
-  return <div className={`admin-shell ${monaSans.variable}`}>
+  return <AdminNavProvider><div className={`admin-shell ${monaSans.variable}`}>
     <aside className="admin-sidebar">
       <Brand name={storeName} />
       <span className="sidebar-label">YOUR WORKSPACE</span>
-      <nav aria-label="Studio navigation">{links.map(({ href, label, Icon }) => <Link key={href} href={href} className={active === href ? "active" : ""} aria-current={active === href ? "page" : undefined}><Icon size={18} />{label}</Link>)}</nav>
+      <AdminNav />
       <div className="sidebar-bottom">
         <Link href="/" target="_blank" rel="noopener noreferrer">View your store <ArrowUpRight size={17} /></Link>
         <SignOutButton />
@@ -36,5 +40,5 @@ export function AdminShell({ children, active, storeName = "PodStore", owner }: 
       </header>
       <main className="admin-content">{children}</main>
     </div>
-  </div>;
+  </div></AdminNavProvider>;
 }

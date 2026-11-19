@@ -1,1 +1,0 @@
-export default function Loading() { return <main className="admin-loading" aria-busy="true" aria-label="Loading your workspace"><div className="loading-bar" /><div className="loading-block" /><div className="loading-block short" /></main>; }
