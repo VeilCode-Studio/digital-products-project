@@ -22,7 +22,6 @@ export function AdminShell({ children, storeName = "PodStore", owner }: {
   return <AdminNavProvider><div className={`admin-shell ${monaSans.variable}`}>
     <aside className="admin-sidebar">
       <Brand name={storeName} />
-      <span className="sidebar-label">YOUR WORKSPACE</span>
       <AdminNav />
       <div className="sidebar-bottom">
         <Link href="/" target="_blank" rel="noopener noreferrer">View your store <ArrowUpRight size={17} /></Link>

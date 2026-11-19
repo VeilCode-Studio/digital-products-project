@@ -1,26 +1,35 @@
 "use client";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, LayoutDashboard, Link2, Mail, MessageSquareQuote, Package, Percent, Plug, Radar, Receipt, Settings, Store, TicketPercent, Truck } from "lucide-react";
 
-// The sidebar, in the order the work flows: find, sell, fulfil, measure, then the assistants and settings.
-export const ADMIN_LINKS = [
-  { href: "/admin", label: "Overview", Icon: LayoutDashboard },
-  { href: "/admin/research", label: "Research", Icon: Radar },
-  { href: "/admin/products", label: "Digital products", Icon: Package },
-  { href: "/admin/stores", label: "Physical stores", Icon: Store },
-  { href: "/admin/orders", label: "Orders", Icon: Receipt },
-  { href: "/admin/fulfillment", label: "Fulfilment", Icon: Truck },
-  { href: "/admin/margins", label: "Margins", Icon: Percent },
-  { href: "/admin/analytics", label: "Analytics", Icon: BarChart3 },
-  { href: "/admin/links", label: "Short links", Icon: Link2 },
-  { href: "/admin/discounts", label: "Discount codes", Icon: TicketPercent },
-  { href: "/admin/subscribers", label: "Subscribers", Icon: Mail },
-  { href: "/admin/reviews", label: "Reviews", Icon: MessageSquareQuote },
-  { href: "/admin/connections", label: "Connections", Icon: Plug },
-  { href: "/admin/settings", label: "Store settings", Icon: Settings },
+// The sidebar, grouped in the order the work flows: find and build, sell and ship, grow, then setup.
+export const ADMIN_GROUPS = [
+  { label: null, links: [{ href: "/admin", label: "Overview", Icon: LayoutDashboard }] },
+  { label: "Build", links: [
+    { href: "/admin/research", label: "Research", Icon: Radar },
+    { href: "/admin/products", label: "Digital products", Icon: Package },
+    { href: "/admin/stores", label: "Physical stores", Icon: Store },
+  ] },
+  { label: "Sell", links: [
+    { href: "/admin/orders", label: "Orders", Icon: Receipt },
+    { href: "/admin/fulfillment", label: "Fulfilment", Icon: Truck },
+    { href: "/admin/margins", label: "Margins", Icon: Percent },
+  ] },
+  { label: "Grow", links: [
+    { href: "/admin/analytics", label: "Analytics", Icon: BarChart3 },
+    { href: "/admin/discounts", label: "Discount codes", Icon: TicketPercent },
+    { href: "/admin/subscribers", label: "Subscribers", Icon: Mail },
+    { href: "/admin/reviews", label: "Reviews", Icon: MessageSquareQuote },
+    { href: "/admin/links", label: "Short links", Icon: Link2 },
+  ] },
+  { label: "Setup", links: [
+    { href: "/admin/connections", label: "Connections", Icon: Plug },
+    { href: "/admin/settings", label: "Store settings", Icon: Settings },
+  ] },
 ] as const;
+export const ADMIN_LINKS: readonly (typeof ADMIN_GROUPS)[number]["links"][number][] = ADMIN_GROUPS.flatMap((group): readonly (typeof ADMIN_GROUPS)[number]["links"][number][] => group.links);
 
 /** The section a URL belongs to, by its longest matching link. New stores live under /admin/products. */
 function sectionFor(pathname: string | null) {
@@ -51,7 +60,21 @@ export function AdminNav() {
   const fromUrl = sectionFor(pathname);
   // The override belongs to the page that set it; while another page loads, the URL decides.
   const active = override && (fromUrl === "/admin/products" || fromUrl === override) ? override : fromUrl;
-  return <nav aria-label="Studio navigation">{ADMIN_LINKS.map(({ href, label, Icon }) => (
-    <Link key={href} href={href} className={active === href ? "active" : ""} aria-current={active === href ? "page" : undefined}><Icon size={18} />{label}</Link>
+  const navRef = useRef<HTMLElement>(null);
+  // The links scroll between the pinned brand and account links; keep the current one in view.
+  useEffect(() => {
+    const nav = navRef.current;
+    const link = nav?.querySelector<HTMLElement>('a[aria-current="page"]');
+    if (!nav || !link || nav.scrollHeight <= nav.clientHeight) return;
+    const box = nav.getBoundingClientRect(); const item = link.getBoundingClientRect();
+    if (item.top < box.top || item.bottom > box.bottom) nav.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+  }, [active]);
+  return <nav ref={navRef} aria-label="Studio navigation">{ADMIN_GROUPS.map((group) => (
+    <div key={group.label ?? "home"} className="nav-group" role="group" aria-label={group.label ?? "Home"}>
+      {group.label && <span className="nav-group-label" aria-hidden="true">{group.label}</span>}
+      {group.links.map(({ href, label, Icon }) => (
+        <Link key={href} href={href} className={active === href ? "active" : ""} aria-current={active === href ? "page" : undefined}><Icon size={18} />{label}</Link>
+      ))}
+    </div>
   ))}</nav>;
 }

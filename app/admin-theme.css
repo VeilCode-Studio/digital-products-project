@@ -23,17 +23,22 @@
 
 /* Sidebar */
 .admin-shell .admin-sidebar {
-  border-right: 0; color: #fff; padding: 26px 16px 22px; isolation: isolate; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  border-right: 0; color: #fff; padding: 26px 16px 22px; isolation: isolate; overflow: hidden;
   background:
     radial-gradient(120% 45% at 0% 100%, rgba(43, 89, 255, .34) 0%, rgba(43, 89, 255, 0) 62%),
     linear-gradient(180deg, var(--ad-ink-2) 0%, var(--ad-ink) 42%);
 }
-.admin-shell .admin-sidebar .brand { color: #fff; font-size: 15px; margin: 0 6px 40px; letter-spacing: -.02em; }
+.admin-shell .admin-sidebar .brand { flex: none; color: #fff; font-size: 15px; margin: 0 6px 28px; letter-spacing: -.02em; }
 .admin-shell .admin-sidebar .brand-mark { border-radius: 9px; box-shadow: 0 8px 22px -8px rgba(43, 89, 255, .9); }
-.admin-shell .sidebar-label { color: rgba(214, 222, 255, .42); font-size: 10px; letter-spacing: .16em; margin: 0 12px 12px; }
-.admin-shell .admin-sidebar nav { gap: 4px; }
+/* The brand and the account links stay put; only the grouped links between them scroll. */
+.admin-shell .admin-sidebar nav {
+  display: flex; flex-direction: column; gap: 18px; flex: 1 1 auto; min-height: 0; margin-inline: -4px; padding: 2px 4px 12px;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+}
+.admin-shell .nav-group { display: grid; gap: 2px; }
+.admin-shell .nav-group-label { color: rgba(214, 222, 255, .42); font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; margin: 0 12px 6px; }
 .admin-shell .admin-sidebar nav a {
-  padding: 11px 12px; border-radius: 12px; color: rgba(222, 228, 255, .66); font-size: 13.5px; font-weight: 500;
+  padding: 9px 12px; border-radius: 12px; color: rgba(222, 228, 255, .66); font-size: 13.5px; font-weight: 500;
   transition: background .2s ease, color .2s ease, box-shadow .3s ease;
 }
 .admin-shell .admin-sidebar nav a:hover { background: rgba(255, 255, 255, .06); color: #fff; }
@@ -43,21 +48,32 @@
   box-shadow: 0 12px 26px -12px rgba(43, 89, 255, .95), inset 0 1px 0 rgba(255, 255, 255, .22);
 }
 .admin-shell .admin-sidebar nav a:focus-visible { outline: 2px solid #9db2ff; outline-offset: 2px; }
+.admin-shell .sidebar-bottom { flex: none; margin-top: 0; padding-top: 18px; gap: 16px; border-top: 1px solid rgba(255, 255, 255, .08); }
 .admin-shell .sidebar-bottom > a, .admin-shell .sidebar-bottom button { color: rgba(222, 228, 255, .6); font-size: 12.5px; }
 .admin-shell .sidebar-bottom > a:hover, .admin-shell .sidebar-bottom .sidebar-signout:hover { color: #fff; }
 .admin-shell .sidebar-footnote { color: rgba(214, 222, 255, .34); border-top-color: rgba(255, 255, 255, .08); font-size: 10px; }
-/* Eight links and the account links outgrow a laptop-height window: tighten, then let the sidebar scroll
-   rather than cut off Sign out. The phone layout (max-width: 600px) is a top bar and keeps its own spacing. */
-@supports (scrollbar-width: thin) { .admin-shell .admin-sidebar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .18) transparent; } }
+/* Off production a sticky one-line banner (app/layout.tsx) sits above the shell; start the sidebar and top bar
+   below it so the pinned account links stay on screen. */
+@supports selector(:has(*)) {
+  @media (min-width: 601px) {
+    body:has(> .environment-banner) .admin-shell { --env-banner: 35px; }
+    .admin-shell .admin-sidebar { top: var(--env-banner, 0px); height: calc(100dvh - var(--env-banner, 0px)); }
+    .admin-shell .admin-topbar { top: var(--env-banner, 0px); }
+  }
+}
+/* Shorter windows: tighten first, then drop the footnote; the links scroll rather than push Sign out away.
+   The phone layout (max-width: 600px) is a top bar and keeps its own spacing. */
+@supports (scrollbar-width: thin) { .admin-shell .admin-sidebar nav { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .18) transparent; } }
 @media (min-width: 601px) and (max-height: 820px) {
   .admin-shell .admin-sidebar { padding-block: 20px 16px; }
-  .admin-shell .admin-sidebar .brand { margin-bottom: 24px; }
-  .admin-shell .admin-sidebar nav a { padding-block: 9px; }
-  .admin-shell .sidebar-bottom { padding-top: 20px; gap: 14px; }
-  .admin-shell .sidebar-footnote { padding-top: 14px; }
+  .admin-shell .admin-sidebar .brand { margin-bottom: 20px; }
+  .admin-shell .admin-sidebar nav { gap: 14px; }
+  .admin-shell .admin-sidebar nav a { padding-block: 8px; }
+  .admin-shell .sidebar-bottom { padding-top: 14px; gap: 12px; }
+  .admin-shell .sidebar-footnote { padding-top: 12px; }
 }
 @media (min-width: 601px) and (max-height: 700px) {
-  .admin-shell .sidebar-label, .admin-shell .sidebar-footnote { display: none; }
+  .admin-shell .sidebar-footnote { display: none; }
   .admin-shell .admin-sidebar nav a { padding-block: 7px; }
 }
 
@@ -239,12 +255,19 @@
 @media (max-width: 850px) {
   .admin-shell .admin-sidebar { padding: 22px 12px; }
   .admin-shell .admin-sidebar .brand { margin: 0 auto 32px; }
-  .admin-shell .admin-sidebar nav a { justify-content: center; padding: 12px; font-size: 0; }
+  .admin-shell .admin-sidebar nav a { justify-content: center; padding: 11px; font-size: 0; }
+  .admin-shell .admin-sidebar nav { gap: 10px; }
+  .admin-shell .nav-group-label { display: none; }
+  .admin-shell .nav-group + .nav-group { padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .08); }
   .admin-shell .sidebar-bottom > a, .admin-shell .sidebar-bottom button { font-size: 0; }
   .dash-stats { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 600px) {
-  .admin-shell .admin-sidebar { padding: 14px 14px 10px; }
+  .admin-shell .admin-sidebar { padding: 14px 14px 10px; overflow: visible; }
+  .admin-shell .admin-sidebar nav { display: grid; overflow: visible; margin: 0; padding: 0; }
+  .admin-shell .nav-group { display: contents; }
+  .admin-shell .nav-group-label { display: none; }
+  .admin-shell .sidebar-bottom { border-top: 0; }
   .admin-shell .admin-sidebar .brand { margin: 0 0 14px; }
   .admin-shell .admin-sidebar nav a { flex-direction: column; justify-content: flex-start; align-items: center; gap: 5px; min-width: 0; padding: 10px 4px; font-size: 10px; line-height: 1.25; text-align: center; white-space: normal; }
   .admin-shell .sidebar-bottom > a, .admin-shell .sidebar-bottom button { font-size: 10px; }
