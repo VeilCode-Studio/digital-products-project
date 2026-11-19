@@ -5,6 +5,8 @@ import { getStorefront } from "@/lib/storefront";
 import { StoreFrame } from "@/components/storefront/store-frame";
 import { AdEvent } from "@/components/storefront/tiktok";
 import { findCheckout } from "@/lib/checkout";
+import { thankYouCode } from "@/lib/thank-you-offers";
+import { ThankYouOffers } from "@/components/site/thank-you-offers";
 import "../storefront.css";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +39,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function ThankYouPage({ params, searchParams }: Params) {
   const store = await getStorefront((await params).slug);
   if (!store) notFound();
-  const purchase = store.brand.tiktokPixelId || store.brand.metaPixelId ? await purchaseFor(store.product.id, (await searchParams).ref) : null;
+  const [purchase, code] = await Promise.all([
+    store.brand.tiktokPixelId || store.brand.metaPixelId ? purchaseFor(store.product.id, (await searchParams).ref) : null,
+    thankYouCode().catch(() => null),
+  ]);
   // Total time from ordering: processing (from the store's policies) plus the shipping option's transit time.
   const processing = store.policies?.processingDays ?? { min: 0, max: 0 };
   const earliest = store.shipping.length ? processing.min + Math.min(...store.shipping.map((rate) => rate.minDays)) : 0;
@@ -58,6 +63,8 @@ export default async function ThankYouPage({ params, searchParams }: Params) {
           <ol className="st-thanks-steps">
             {steps.map((step) => <li key={step.title}><span className="st-icon"><step.icon size={22} strokeWidth={1.75} aria-hidden /></span><div><h2>{step.title}</h2><p>{step.text}</p></div></li>)}
           </ol>
+          {/* Each store is its own brand, so only the code for next time shows here, not the digital collection. */}
+          <ThankYouOffers offers={{ code, products: [] }} accent="var(--st-accent)" />
           <div className="st-thanks-actions">
             <a className="st-button" href={`/s/${store.product.slug}`}>Back to {store.brand.name}</a>
             {store.brand.supportEmail && <p>Need to change your address? Email <a href={`mailto:${store.brand.supportEmail}`}>{store.brand.supportEmail}</a> before it ships.</p>}

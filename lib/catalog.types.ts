@@ -13,6 +13,8 @@ export type Store = {
   enabled_markets?: Market[];
   /** The digital product given away for an email address (lib/subscribers.ts). */
   gift_product_id?: string | null;
+  /** The discount code shown on thank-you pages (lib/thank-you-offers.ts). */
+  thank_you_code_id?: string | null;
 };
 export type CatalogProduct = {
   id: string; store_id: string; slug: string; name: string; tagline: string;

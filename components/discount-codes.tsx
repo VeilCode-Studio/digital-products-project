@@ -36,7 +36,7 @@ async function call(body: Record<string, unknown>) {
 }
 
 /** The Discount codes page (/admin/discounts): make a code for a video or promotion, and see what it earns. */
-export function DiscountCodes({ codes }: { codes: DiscountCodeRow[] }) {
+export function DiscountCodes({ codes, thankYouCodeId }: { codes: DiscountCodeRow[]; thankYouCodeId: string | null }) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [kind, setKind] = useState("percent");
@@ -47,6 +47,16 @@ export function DiscountCodes({ codes }: { codes: DiscountCodeRow[] }) {
   const [label, setLabel] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [thankYou, setThankYou] = useState(thankYouCodeId ?? "none");
+  const thankYouItems = [{ value: "none", label: "Don't show a code" }, ...codes.filter((entry) => entry.usable).map((entry) => ({ value: entry.id, label: `${entry.code} (${describe(entry)})` }))];
+  const saveThankYou = async (next: string) => {
+    setThankYou(next);
+    try {
+      await call({ action: "thank-you", id: next === "none" ? null : next });
+      toast.success(next === "none" ? "Thank-you pages show no code" : "Code added to thank-you pages", { description: next === "none" ? undefined : "Buyers see it right after paying, as a reason to come back." });
+      router.refresh();
+    } catch (failure) { toast.error((failure as Error).message); setThankYou(thankYouCodeId ?? "none"); }
+  };
 
   const normalized = clean(code);
   const taken = codes.some((entry) => entry.code === normalized);
@@ -124,6 +134,18 @@ export function DiscountCodes({ codes }: { codes: DiscountCodeRow[] }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       <button type="button" className="button primary" onClick={create} disabled={!normalized || !!problem || !!valueProblem || pending === "create"}><Plus size={16} />{pending === "create" ? "Creating…" : normalized ? `Create ${normalized}` : "Create code"}</button>
     </section>
+
+    {codes.length > 0 && <section className="workspace-panel form-panel sl-create" aria-labelledby="dc-ty-title">
+      <div className="sl-create-head"><h2 id="dc-ty-title">Thank-you pages</h2><p>Show one code right after someone pays, as a reason to come back. It disappears by itself once the code is paused, ends or is used up.</p></div>
+      <div className="sl-grid"><div className="sl-field sl-wide">
+        <span className="sl-label" id="dc-ty-label">Code to show</span>
+        <Select items={thankYouItems} value={thankYou} onValueChange={(next) => { if (next !== null && next !== thankYou) void saveThankYou(String(next)); }}>
+          <SelectTrigger aria-labelledby="dc-ty-label" className="sl-trigger"><SelectValue /></SelectTrigger>
+          <SelectContent>{thankYouItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+        </Select>
+        <small className="sl-hint">A limited code works well here, such as 15% off with 100 uses, so it stays a thank-you rather than a standing discount.</small>
+      </div></div>
+    </section>}
 
     <section className="workspace-panel">
       <div className="panel-heading"><h2>Your codes <span className="count">{codes.length}</span></h2><span className="muted">Paid orders that used each code</span></div>

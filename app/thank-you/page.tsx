@@ -2,10 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Brand } from "@/components/store";
 import { MAX_DOWNLOADS, TOKEN_LIFETIME_DAYS } from "@/lib/tokens";
+import { digitalOffers } from "@/lib/thank-you-offers";
+import { ThankYouOffers } from "@/components/site/thank-you-offers";
 
 export const metadata: Metadata = { title: "Payment received", robots: { index: false, follow: false } };
+export const dynamic = "force-dynamic";
 
-export default function ThankYou() {
+export default async function ThankYou({ searchParams }: { searchParams: Promise<{ ref?: string }> }) {
+  const offers = await digitalOffers((await searchParams).ref).catch(() => ({ code: null, products: [] }));
   return (
     <div className="thank-you-page">
       <header className="thank-you-header">
@@ -42,6 +46,7 @@ export default function ThankYou() {
             <div className="thank-you-note-bottom"><span>MADE WITH CARE</span><span>PODSTORE</span></div>
           </div>
         </section>
+        <ThankYouOffers offers={offers} />
         <section className="thank-you-next" aria-labelledby="thank-you-next-title">
           <div className="thank-you-section-heading"><span className="eyebrow">THE NEXT LITTLE STEPS</span><h2 id="thank-you-next-title">From here to your first good idea.</h2></div>
           <ol className="thank-you-steps">

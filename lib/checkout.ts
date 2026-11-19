@@ -74,7 +74,8 @@ export async function startCheckout(productId: string, checkoutId: string, linkS
     allow_promotion_codes: true,
     client_reference_id: checkout.id,
     metadata: { app: "veilcode-store", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
-    success_url: new URL("/thank-you", getEnv().APP_URL).toString(),
+    // The checkout id lets the thank-you page suggest what pairs with this purchase (lib/thank-you-offers.ts).
+    success_url: new URL(`/thank-you?ref=${checkout.id}`, getEnv().APP_URL).toString(),
     cancel_url: new URL(`/p/${checkout.product_slug}?checkout=cancelled`, getEnv().APP_URL).toString(),
     integration_identifier: `veilcode-store-${suffix}`,
   }, { ...options, idempotencyKey: `checkout-${checkout.id}` });

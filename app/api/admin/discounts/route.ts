@@ -1,6 +1,7 @@
 import { requireOwner } from "@/lib/auth";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
 import { createDiscountCode, setDiscountCodeActive } from "@/lib/discount-codes";
+import { setThankYouCode } from "@/lib/thank-you-offers";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,7 @@ export async function POST(req: Request) {
     switch (body.action) {
       case "create": result = { code: await createDiscountCode(body) }; break;
       case "active": result = { code: await setDiscountCodeActive(body) }; break;
+      case "thank-you": result = await setThankYouCode(body.id); break;
       default: throw new HttpError(400, "Unknown action.");
     }
     return Response.json({ ok: true, ...(result as object) }, { headers: { "Cache-Control": "no-store" } });

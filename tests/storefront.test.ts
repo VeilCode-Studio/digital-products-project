@@ -179,7 +179,7 @@ describe("per-purchase Stripe checkout and delivery", () => {
     expect(sessionsCreate).toHaveBeenCalledWith(expect.objectContaining({
       line_items: [{ price: "price_seed", quantity: 1 }], client_reference_id: checkoutId,
       metadata: { app: "veilcode-store", checkout_id: checkoutId, product_id: product.id, store_id: STORE_ID },
-      success_url: "https://delivery.example.com/thank-you", cancel_url: "https://delivery.example.com/p/studio-kit?checkout=cancelled",
+      success_url: expect.stringMatching(/^https:\/\/delivery\.example\.com\/thank-you\?ref=[0-9a-f-]{36}$/), cancel_url: "https://delivery.example.com/p/studio-kit?checkout=cancelled",
     }), { idempotencyKey: `checkout-${checkoutId}` });
     expect(sessionsCreate.mock.calls[0][0]).not.toHaveProperty("payment_method_types");
     expect(state.checkouts[0].product_snapshot?.storagePath).toBe(product.storage_path);
