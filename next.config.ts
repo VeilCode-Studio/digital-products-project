@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: { "/": ["./public/home/**/*"], "/api/home-photo/**": ["./public/home/**/*"] },
   experimental: {
     agentFeedback: true,
+    agentUpgrade: "security",
   },
   turbopack: {
     rules: {
