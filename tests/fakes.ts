@@ -15,7 +15,7 @@ export const state = {
   product_variants: [] as ProductVariant[], shipping_rates: [] as ShippingRate[], shipping_profiles: [] as ShippingProfile[],
   research_products: [] as Row[], integration_tokens: [] as Row[],
   mcp_clients: [] as Row[], mcp_connections: [] as Row[], mcp_secrets: [] as Row[], mcp_activity: [] as Row[], mcp_uploads: [] as Row[],
-  short_links: [] as Row[], short_link_clicks: [] as Row[],
+  short_links: [] as Row[], short_link_clicks: [] as Row[], discount_codes: [] as Row[],
   dbError: false, insertError: null as DbError, markSentError: false,
   stripeProducts: new Map<string, Row>(), stripePrices: new Map<string, Row>(), sessions: new Map<string, Row>(), stripeShippingRates: new Map<string, Row>(),
 };
@@ -45,7 +45,7 @@ export function seedProduct(overrides: Partial<CatalogProduct> = {}): CatalogPro
   return product;
 }
 function rows(table: string): Row[] {
-  if (!["orders", "products", "checkouts", "stores", "payment_connections", "payment_oauth_attempts", "product_payment_refs", "product_variants", "shipping_rates", "shipping_profiles", "research_products", "integration_tokens", "mcp_clients", "mcp_connections", "mcp_secrets", "mcp_activity", "mcp_uploads", "short_links", "short_link_clicks"].includes(table)) throw new Error(`Unexpected table: ${table}`);
+  if (!["orders", "products", "checkouts", "stores", "payment_connections", "payment_oauth_attempts", "product_payment_refs", "product_variants", "shipping_rates", "shipping_profiles", "research_products", "integration_tokens", "mcp_clients", "mcp_connections", "mcp_secrets", "mcp_activity", "mcp_uploads", "short_links", "short_link_clicks", "discount_codes"].includes(table)) throw new Error(`Unexpected table: ${table}`);
   return state[table as "orders"] as unknown as Row[];
 }
 class Query implements PromiseLike<Result> {
@@ -89,7 +89,8 @@ class Query implements PromiseLike<Result> {
       if (tableRows.some((row) => (this.values.id !== undefined && row.id === this.values.id) ||
         (this.table === "orders" && (row.stripe_session_id === this.values.stripe_session_id || (this.values.download_token_hash != null && row.download_token_hash === this.values.download_token_hash))) ||
         (this.table === "products" && row.store_id === this.values.store_id && row.slug === this.values.slug) ||
-        (this.table === "short_links" && row.slug === this.values.slug))) {
+        (this.table === "short_links" && row.slug === this.values.slug) ||
+        (this.table === "discount_codes" && row.store_id === this.values.store_id && row.code === this.values.code))) {
         return { data: null, error: { code: "23505", message: "Unique violation" } };
       }
       let data;
@@ -99,6 +100,7 @@ class Query implements PromiseLike<Result> {
         const defaults: Row = this.table === "mcp_connections" ? { id: randomUUID(), last_used_at: null, revoked_at: null, client_id: null }
           : this.table === "mcp_uploads" ? { id: randomUUID() } : this.table === "mcp_activity" ? { id: tableRows.length + 1 }
           : this.table === "mcp_secrets" ? { details: {}, expires_at: null, used_at: null }
+          : this.table === "discount_codes" ? { id: randomUUID(), active: true, label: null, updated_at: new Date().toISOString() }
           : this.table === "short_links" ? { id: randomUUID(), product_id: null, source: "tiktok", label: null, active: true, clicks: 0, last_clicked_at: null, updated_at: new Date().toISOString() } : {};
         data = { created_at: new Date().toISOString(), ...defaults, ...this.values }; tableRows.push(data);
       }
@@ -212,6 +214,9 @@ export const productsUpdate = vi.fn();
 export const pricesRetrieve = vi.fn();
 export const pricesCreate = vi.fn();
 export const sessionsCreate = vi.fn();
+export const couponsCreate = vi.fn();
+export const promotionCodesCreate = vi.fn();
+export const promotionCodesUpdate = vi.fn();
 export const sessionsRetrieve = vi.fn();
 export const shippingRatesRetrieve = vi.fn();
 export const refundsCreate = vi.fn();
@@ -225,7 +230,10 @@ export function resetFakes() {
   state.product_variants = []; state.shipping_rates = []; state.shipping_profiles = [];
   state.research_products = []; state.integration_tokens = [];
   state.mcp_clients = []; state.mcp_connections = []; state.mcp_secrets = []; state.mcp_activity = []; state.mcp_uploads = [];
-  state.short_links = []; state.short_link_clicks = [];
+  state.short_links = []; state.short_link_clicks = []; state.discount_codes = [];
+  couponsCreate.mockReset().mockImplementation(async (input: Row) => ({ id: `coupon_${randomUUID().slice(0, 8)}`, ...input }));
+  promotionCodesCreate.mockReset().mockImplementation(async (input: Row) => ({ id: `promo_${randomUUID().slice(0, 8)}`, active: true, ...input }));
+  promotionCodesUpdate.mockReset().mockImplementation(async (id: string, input: Row) => ({ id, ...input }));
   shippingRatesRetrieve.mockReset().mockImplementation(async (id: string) => { const rate = state.stripeShippingRates.get(id); if (!rate) throw { code: "resource_missing" }; return { ...rate }; });
   state.stripeShippingRates.clear();
   refundsCreate.mockReset().mockImplementation(async (input: Row) => ({ id: "re_test_1", amount: 10795, payment_intent: input.payment_intent, status: "succeeded" }));

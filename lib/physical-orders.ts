@@ -1,4 +1,5 @@
 import "server-only";
+import { discountFromSession } from "./discount-codes";
 import type Stripe from "stripe";
 import { getStripe } from "./stripe";
 import { insertPhysicalOrder, markConfirmationSent } from "./orders";
@@ -65,6 +66,7 @@ export async function recordPhysicalOrder(session: Stripe.Checkout.Session, chec
     amountTotal: session.amount_total, currency: session.currency,
     customerName: address.name, shippingAddress: address, snapshot: { ...reserved, shipping },
     storeId: connection?.store_id, connectionId: connection?.id,
+    ...await discountFromSession(session),
   });
   if (order.email_status !== "sent") {
     await sendOrderConfirmation(order);

@@ -11,6 +11,8 @@ vi.mock("stripe", async () => {
     shippingRates = { retrieve: fakes.shippingRatesRetrieve };
     refunds = { create: fakes.refundsCreate };
     accounts = { retrieve: fakes.accountsRetrieve };
+    coupons = { create: fakes.couponsCreate };
+    promotionCodes = { create: fakes.promotionCodesCreate, update: fakes.promotionCodesUpdate };
     oauth = { authorizeUrl: fakes.oauthAuthorizeUrl, token: fakes.oauthToken, deauthorize: fakes.oauthDeauthorize };
   } };
 });

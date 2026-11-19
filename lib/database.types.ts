@@ -15,6 +15,8 @@ export type McpSecret = {
 };
 export type McpActivity = { id: number; connection_id: string; tool: string; summary: string; ok: boolean; created_at: string };
 export type McpUpload = { id: string; connection_id: string; product_id: string; filename: string; size: number; parts: string[]; received: number; created_at: string };
+import type { DiscountCode } from "./discount-codes";
+
 // supabase/migrations/20261119000000_short_links.sql
 export type ShortLink = {
   id: string; store_id: string; slug: string; product_id: string | null; source: "tiktok" | "instagram" | "youtube" | "facebook" | "other"; label: string | null;
@@ -28,6 +30,9 @@ export type Order = {
   product_id: string;
   email: string;
   amount_total: number | null;
+  /** The discount code used at checkout, and how much it saved (lib/discount-codes.ts). */
+  discount_code?: string | null;
+  discount_amount?: number | null;
   currency: string | null;
   /** Null for physical orders, which have no download. */
   download_token_hash: string | null;
@@ -86,6 +91,7 @@ export type Database = {
       mcp_uploads: { Row: McpUpload; Insert: Pick<McpUpload, "connection_id" | "product_id" | "filename" | "size"> & Partial<McpUpload>; Update: Partial<McpUpload>; Relationships: [] };
       integration_tokens: { Row: IntegrationToken; Insert: Omit<IntegrationToken, "updated_at"> & { updated_at?: string }; Update: Partial<IntegrationToken>; Relationships: [] };
       short_links: { Row: ShortLink; Insert: Pick<ShortLink, "store_id" | "slug"> & Partial<ShortLink>; Update: Partial<ShortLink>; Relationships: [] };
+      discount_codes: { Row: DiscountCode; Insert: Omit<DiscountCode, "id" | "active" | "created_at" | "updated_at"> & Partial<DiscountCode>; Update: Partial<DiscountCode>; Relationships: [] };
       short_link_clicks: { Row: ShortLinkClick; Insert: Pick<ShortLinkClick, "link_id"> & Partial<ShortLinkClick>; Update: Partial<ShortLinkClick>; Relationships: [] };
       stores: { Row: Store; Insert: Store; Update: Partial<Store>; Relationships: [] };
       products: { Row: CatalogProduct; Insert: Pick<CatalogProduct, "id" | "store_id" | "slug" | "name"> & Partial<CatalogProduct>; Update: Partial<CatalogProduct>; Relationships: [] };

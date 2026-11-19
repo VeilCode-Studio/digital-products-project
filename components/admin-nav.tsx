@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, LayoutDashboard, Link2, Package, Plug, Radar, Receipt, Settings, Store, Truck } from "lucide-react";
+import { BarChart3, LayoutDashboard, Link2, Package, Plug, Radar, Receipt, Settings, Store, TicketPercent, Truck } from "lucide-react";
 
 // The sidebar, in the order the work flows: find, sell, fulfil, measure, then the assistants and settings.
 export const ADMIN_LINKS = [
@@ -14,6 +14,7 @@ export const ADMIN_LINKS = [
   { href: "/admin/fulfillment", label: "Fulfilment", Icon: Truck },
   { href: "/admin/analytics", label: "Analytics", Icon: BarChart3 },
   { href: "/admin/links", label: "Short links", Icon: Link2 },
+  { href: "/admin/discounts", label: "Discount codes", Icon: TicketPercent },
   { href: "/admin/connections", label: "Connections", Icon: Plug },
   { href: "/admin/settings", label: "Store settings", Icon: Settings },
 ] as const;

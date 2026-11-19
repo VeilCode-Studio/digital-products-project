@@ -13,15 +13,25 @@ export async function findOrder(sessionId: string): Promise<Order | null> {
   return data as Order | null;
 }
 
+/** Only orders that used a discount carry these columns. */
+function discountColumns(input: { discountCode?: string | null; discountAmount?: number | null }) {
+  return {
+    ...(input.discountCode ? { discount_code: input.discountCode } : {}),
+    ...(input.discountAmount ? { discount_amount: input.discountAmount } : {}),
+  };
+}
+
 export async function insertOrder(input: {
   sessionId: string; productId: string; email: string;
   amountTotal: number | null; currency: string | null;
   tokenHash: string; expiresAt: string;
   productSnapshot?: DeliveryProduct;
   storeId?: string; connectionId?: string | null;
+  discountCode?: string | null; discountAmount?: number | null;
 }): Promise<{ order: Order; inserted: boolean }> {
   const { data, error } = await getSupabase().from("orders").insert({
     stripe_session_id: input.sessionId,
+    ...discountColumns(input),
     store_id: input.storeId ?? STORE_ID,
     ...(input.connectionId ? { payment_connection_id: input.connectionId } : {}),
     product_snapshot: input.productSnapshot ?? null,
@@ -48,10 +58,12 @@ export async function insertPhysicalOrder(input: {
   sessionId: string; productId: string; email: string; amountTotal: number | null; currency: string | null;
   customerName: string | null; shippingAddress: ShippingAddress; snapshot: PhysicalSnapshot;
   storeId?: string; connectionId?: string | null;
+  discountCode?: string | null; discountAmount?: number | null;
 }): Promise<{ order: Order; inserted: boolean }> {
   const storeId = input.storeId ?? STORE_ID;
   const { data, error } = await getSupabase().from("orders").insert({
     stripe_session_id: input.sessionId, store_id: storeId,
+    ...discountColumns(input),
     ...(input.connectionId ? { payment_connection_id: input.connectionId } : {}),
     kind: "physical", product_id: input.productId, product_snapshot: null, email: input.email,
     amount_total: input.amountTotal, currency: input.currency,

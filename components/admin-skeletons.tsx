@@ -152,6 +152,17 @@ export function SkLinks() {
   </Busy>;
 }
 
+export function SkDiscounts() {
+  return <Busy label="Loading discount codes">
+    <SkHeading eyebrow="A REASON TO BUY TODAY" title="Discount codes" text="Codes shoppers type at checkout, like TIKTOK10, and the sales each one brings in." />
+    <section className="workspace-panel form-panel"><Bone w={170} h={16} /><Bone w="52%" h={11} className="sk-gap" />
+      <div className="sl-grid sk-gap-lg">{[0, 1, 2, 3, 4, 5].map((index) => <div className="sk-field" key={index}><Bone w={80} h={11} /><Bone h={42} r={10} className="sk-gap" /></div>)}</div>
+      <Bone w={190} h={42} r={12} className="sk-gap-lg" /></section>
+    <section className="workspace-panel"><div className="panel-heading"><h2>Your codes</h2><Bone w={160} h={12} /></div>
+      {Array.from({ length: 3 }, (_, index) => <div className="sk-line-row" key={index}><div className="sk-grow"><Bone w="30%" h={14} /><Bone w="22%" h={10} className="sk-gap" /></div><Bone w={90} h={14} /><Bone w={60} h={14} /><Bone w={70} h={14} /><Bone w={76} h={32} r={10} /></div>)}</section>
+  </Busy>;
+}
+
 /** Any other workspace page: a heading and a panel of rows. */
 export function SkGeneric() {
   return <Busy label="Loading your workspace">

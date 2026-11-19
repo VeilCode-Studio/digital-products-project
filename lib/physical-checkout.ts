@@ -170,6 +170,8 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     // (lib/abandoned.ts). No consent_collection: Stripe refuses promotional consent for this account's
     // country and fails the whole session, so recovery is recorded without an email.
     after_expiration: { recovery: { enabled: true, allow_promotion_codes: false } },
+    // Shoppers can type a discount code (lib/discount-codes.ts); Stripe checks it is live and has uses left.
+    allow_promotion_codes: true,
     client_reference_id: checkout.id,
     metadata: { app: "veilcode-store", kind: "physical", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
     // The reference lets the thank-you page report this purchase to the store's ad pixel.
