@@ -11,8 +11,8 @@ import { HeroStage } from "@/components/site/hero-stage";
 import { PageEffects } from "@/components/site/page-effects";
 import { Monogram } from "@/components/site/monogram";
 import { ProductTile, SiteFooter, SiteHeader, SUPPORT_FALLBACK, coverSrc } from "@/components/site/chrome";
-import { monaSans } from "./studio-fonts";
-import "./studio.css";
+import { monaSans } from "../studio-fonts";
+import "../studio.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {

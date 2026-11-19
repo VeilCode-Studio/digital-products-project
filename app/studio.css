@@ -527,3 +527,43 @@
   .vc-legal-doc section { margin-top: 34px; padding-top: 24px; }
   .vc .vc-legal-doc section p { font-size: 16px; }
 }
+
+/* Homepage loading state (app/(home)/loading.tsx): the same grid as the page, with shimmering placeholders in place of content. */
+.vc-sk { display: block; max-width: 100%; border-radius: 10px; background: linear-gradient(90deg, #e4e8f0 0%, #f1f3f8 40%, #e4e8f0 80%); background-size: 300% 100%; }
+.vc-sk-on-cobalt { background: linear-gradient(90deg, rgba(255, 255, 255, .16) 0%, rgba(255, 255, 255, .3) 40%, rgba(255, 255, 255, .16) 80%); background-size: 300% 100%; }
+.vc-sk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.vc-sk-copy { padding-bottom: 12px; }
+.vc-sk-eyebrow { width: 210px; height: 14px; margin-bottom: 30px; background: var(--vc-cobalt-wash); }
+.vc-sk-display { width: 66%; height: clamp(48px, 6.4vw, 100px); border-radius: 18px; margin-bottom: clamp(8px, .9vw, 14px); }
+.vc-sk-display-2 { width: 70%; margin-bottom: 40px; }
+.vc-sk-line { width: min(100%, 30em); height: 15px; margin-bottom: 14px; }
+.vc-sk-line-short { width: min(70%, 20em); }
+.vc-sk-actions { margin-top: 42px; }
+.vc-sk-button { width: 228px; height: 54px; border-radius: 999px; background: var(--vc-cobalt-wash); }
+.vc-sk-link { width: 112px; height: 15px; }
+.vc .vc-sk-stage { animation: none; }
+.vc-sk-cover { position: absolute; z-index: 1; inset: 0; margin: auto; width: min(56%, 380px); height: 82%; border-radius: 14px; transform: rotate(-3deg); }
+.vc-sk-icon { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--vc-cobalt-wash); }
+.vc-sk-stack { flex: 1; min-width: 0; padding-top: 2px; }
+.vc-sk-strong { width: 58%; height: 15px; margin-bottom: 11px; }
+.vc-sk-small { width: 100%; height: 12px; margin-bottom: 9px; }
+.vc-sk-small-short { width: 64%; }
+.vc-sk-heading { width: min(100%, 420px); height: clamp(36px, 4.2vw, 62px); border-radius: 14px; margin-bottom: 26px; }
+.vc-sk-body { width: 100%; height: 15px; margin-bottom: 12px; }
+.vc-sk-body-short { width: 62%; }
+.vc .vc-sk-card { border-radius: 30px; }
+.vc-sk-product-cover { position: absolute; inset: 0; margin: auto; width: 46%; height: 72%; border-radius: 12px; background: linear-gradient(90deg, #d9deea 0%, #e8ebf3 40%, #d9deea 80%); background-size: 300% 100%; }
+.vc-sk-title { width: 62%; height: 24px; margin-bottom: 8px; }
+.vc-sk-price { width: 72px; height: 22px; }
+.vc-sk-cta { width: 96px; height: 15px; }
+@media (prefers-reduced-motion: no-preference) {
+  .vc-sk { animation: vc-sk-shimmer 1.6s ease-in-out infinite; }
+}
+@keyframes vc-sk-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (max-width: 600px) {
+  .vc-sk-display { height: clamp(46px, 14vw, 64px); width: 66%; }
+  .vc-sk-display-2 { width: 68%; }
+  .vc-sk-button { width: 200px; }
+  .vc-sk-cover { width: 60%; height: 80%; }
+  .vc .vc-sk-card { border-radius: 24px; }
+}

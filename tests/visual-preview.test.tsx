@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("Not found"); },
 }));
 
-import Home from "../app/page";
+import Home from "../app/(home)/page";
 import Dashboard from "../app/admin/(workspace)/(overview)/page";
 import ProductPage from "../app/p/[slug]/page";
 import EditProduct from "../app/admin/(workspace)/products/[id]/page";

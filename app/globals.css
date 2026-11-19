@@ -364,9 +364,11 @@ select { padding-right: 20px; }
 .login-art p { color: #26447e; font-size: clamp(36px, 4.5vw, 66px); line-height: 1.05; letter-spacing: -.06em; font-weight: 500; }
 .login-art > div > span { font-size: 13px; }
 .admin-loading { max-width: 1050px; margin: 70px auto; padding: 30px; }
-.loading-bar { height: 22px; width: 40%; background: var(--line); border-radius: 5px; margin-bottom: 35px; }
-.loading-block { height: 120px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 20px; }
-.loading-block.short { height: 70px; width: 70%; }
+/* Public pages without their own skeleton: a thin progress line across the top while the next page loads. */
+.route-progress { position: fixed; inset: 0 0 auto; z-index: 100; height: 3px; overflow: hidden; background: rgba(43, 89, 255, .12); }
+.route-progress::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: 0 3px 3px 0; background: #2b59ff; }
+@media (prefers-reduced-motion: no-preference) { .route-progress::before { animation: route-progress 1.3s cubic-bezier(.65, 0, .35, 1) infinite; } }
+@keyframes route-progress { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
 @media (max-width: 600px) { .product-card:only-child { display: block; }.product-card:only-child .product-cover { height: auto; min-height: 0; }.store-footer > div { flex-wrap: wrap; gap: 15px; } }
 @media (min-width: 1400px) { .admin-content { padding-top: 55px; } }
 @media (max-width: 1100px) { .store-intro { gap: 45px; }.admin-shell { grid-template-columns: 194px minmax(0, 1fr); }.admin-content { padding: 32px 24px; }.admin-topbar { padding: 0 24px; }.product-editor { grid-template-columns: minmax(0, 1fr) 265px; gap: 18px; }.form-panel { padding: 22px; }.launch-panel { flex-wrap: wrap; }.launch-panel > .text-link { margin-left: 88px; }.metric { padding: 20px 14px; }.metric strong { font-size: 24px; }.product-detail-grid { gap: 35px; }.catalog-row { gap: 13px; padding: 20px; } }
