@@ -22,7 +22,8 @@ export async function bindCheckoutSession(id: string, sessionId: string, storeId
   if (error) throw new Error("Could not bind checkout session");
   if (!data && (await findCheckout(id, storeId))?.stripe_session_id !== sessionId) throw new HttpError(409, "A different session already owns this checkout. Reload to start again.");
 }
-export async function startCheckout(productId: string, checkoutId: string) {
+/** `linkSlug` is the short link the shopper arrived through (lib/short-links.ts), when there was one. */
+export async function startCheckout(productId: string, checkoutId: string, linkSlug: string | null = null) {
   const stripe = getStripe();
   const context = await paymentContext();
   const options = stripeOptions(context);
@@ -50,6 +51,7 @@ export async function startCheckout(productId: string, checkoutId: string) {
       stripe_price_id: price.id, amount: price.unit_amount!, currency: price.currency, product_snapshot: snapshotProduct(product),
       product_slug: product.slug,
       payment_connection_id: context.connectionId, checkout_origin: new URL(getEnv().APP_URL).origin,
+      ...(linkSlug ? { link_slug: linkSlug } : {}),
     };
     const { data, error } = await getSupabase().from("checkouts").insert(input).select("*").single();
     if (error && error.code !== "23505") throw new Error("Could not reserve checkout");

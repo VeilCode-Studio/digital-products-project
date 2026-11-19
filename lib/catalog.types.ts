@@ -84,4 +84,6 @@ export type Checkout = {
   attribution?: AdAttribution | null;
   /** Abandoned checkout recovery (lib/abandoned.ts). */
   expired_at?: string | null; recovery_url?: string | null; recovery_email?: string | null; recovered_at?: string | null;
+  /** The short link the shopper arrived through (lib/short-links.ts). */
+  link_slug?: string | null;
 };

@@ -467,6 +467,8 @@
 @media (max-width: 960px) {
   .st { --st-header-h: 60px; }
   .st-nav { display: none; }
+  /* With the section links hidden, the shop button goes back to the right edge. */
+  .st-nav + .st-button { margin-left: auto; }
   .st-hero { padding-top: 0; }
   .st-hero-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .st-hero-grid > .st-gallery { margin-inline: calc(clamp(16px, 4vw, 40px) * -1); }

@@ -25,6 +25,8 @@ export type PhysicalCheckoutRequest = {
   productId: string; variantId: string; quantity: number; checkoutId: string;
   /** Ad attribution from the request; null when the shopper opted out (lib/tiktok.ts). */
   attribution?: AdAttribution | null;
+  /** The short link the shopper arrived through (lib/short-links.ts), when there was one. */
+  linkSlug?: string | null;
 };
 
 export { statementSuffix };
@@ -119,6 +121,7 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
       payment_connection_id: context.connectionId, checkout_origin: new URL(getEnv().APP_URL).origin,
       // Only kept when the store measures ads with a pixel, and only until the purchase is sent.
       attribution: brand.tiktokPixelId || brand.metaPixelId ? input.attribution ?? null : null,
+      ...(input.linkSlug ? { link_slug: input.linkSlug } : {}),
     };
     const { data, error } = await getSupabase().from("checkouts").insert(reservation).select("*").single();
     if (error && error.code !== "23505") throw new Error("Could not reserve checkout");

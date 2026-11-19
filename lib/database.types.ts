@@ -15,6 +15,12 @@ export type McpSecret = {
 };
 export type McpActivity = { id: number; connection_id: string; tool: string; summary: string; ok: boolean; created_at: string };
 export type McpUpload = { id: string; connection_id: string; product_id: string; filename: string; size: number; parts: string[]; received: number; created_at: string };
+// supabase/migrations/20261119000000_short_links.sql
+export type ShortLink = {
+  id: string; store_id: string; slug: string; product_id: string | null; source: "tiktok" | "instagram" | "youtube" | "facebook" | "other"; label: string | null;
+  active: boolean; clicks: number; last_clicked_at: string | null; created_at: string; updated_at: string;
+};
+export type ShortLinkClick = { id: number; link_id: string; created_at: string; country: string | null; device: "mobile" | "tablet" | "desktop" | null; in_app: "tiktok" | "instagram" | "facebook" | null };
 export type IntegrationToken = { provider: "cj"; access_token: string; expires_at: string; updated_at: string };
 export type Order = {
   id: string;
@@ -79,6 +85,8 @@ export type Database = {
       mcp_activity: { Row: McpActivity; Insert: Pick<McpActivity, "connection_id" | "tool" | "summary" | "ok">; Update: Partial<McpActivity>; Relationships: [] };
       mcp_uploads: { Row: McpUpload; Insert: Pick<McpUpload, "connection_id" | "product_id" | "filename" | "size"> & Partial<McpUpload>; Update: Partial<McpUpload>; Relationships: [] };
       integration_tokens: { Row: IntegrationToken; Insert: Omit<IntegrationToken, "updated_at"> & { updated_at?: string }; Update: Partial<IntegrationToken>; Relationships: [] };
+      short_links: { Row: ShortLink; Insert: Pick<ShortLink, "store_id" | "slug"> & Partial<ShortLink>; Update: Partial<ShortLink>; Relationships: [] };
+      short_link_clicks: { Row: ShortLinkClick; Insert: Pick<ShortLinkClick, "link_id"> & Partial<ShortLinkClick>; Update: Partial<ShortLinkClick>; Relationships: [] };
       stores: { Row: Store; Insert: Store; Update: Partial<Store>; Relationships: [] };
       products: { Row: CatalogProduct; Insert: Pick<CatalogProduct, "id" | "store_id" | "slug" | "name"> & Partial<CatalogProduct>; Update: Partial<CatalogProduct>; Relationships: [] };
       checkouts: { Row: Checkout; Insert: Omit<Checkout, "created_at"> & { created_at?: string }; Update: Partial<Checkout>; Relationships: [] };
@@ -91,6 +99,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      record_short_link_click: { Args: { p_link_id: string; p_country: string | null; p_device: string | null; p_in_app: string | null }; Returns: undefined };
       activate_payment_connection: {
         Args: { p_store_id: string; p_owner_id: string; p_account_id: string; p_livemode: boolean; p_charges_enabled: boolean; p_payouts_enabled: boolean; p_country: string; p_requirements: string[] };
         Returns: string;
