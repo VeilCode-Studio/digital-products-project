@@ -1,4 +1,4 @@
-// The studio's own legal pages (/privacy, /terms, /refunds, /data-deletion), for the digital collection and the
+// The studio's own legal and help pages (/support, /privacy, /terms, /refunds, /data-deletion), for the digital collection and the
 // site as a whole. Physical product stores publish their own policies at /s/<slug>/policies (lib/store-policies.ts).
 // Starting templates written to match how the site actually works, not legal advice.
 
@@ -13,10 +13,10 @@ export const GOVERNING_LAW = "Uganda";
 /** How quickly the studio answers privacy, deletion and refund requests. */
 const RESPONSE = "within 2 business days";
 
-export const LEGAL_KINDS = ["privacy", "terms", "refunds", "data-deletion"] as const;
+export const LEGAL_KINDS = ["support", "privacy", "terms", "refunds", "data-deletion"] as const;
 export type LegalKind = (typeof LEGAL_KINDS)[number];
 export const LEGAL_TITLES: Record<LegalKind, string> = {
-  privacy: "Privacy policy", terms: "Terms of sale", refunds: "Refund policy", "data-deletion": "Data deletion",
+  support: "Customer support", privacy: "Privacy policy", terms: "Terms of sale", refunds: "Refund policy", "data-deletion": "Data deletion",
 };
 
 export type LegalSection = { heading: string; paragraphs: string[] };
@@ -24,6 +24,30 @@ export type LegalDocument = { title: string; intro: string; sections: LegalSecti
 
 export function legalDocument(kind: LegalKind, support: string): LegalDocument {
   switch (kind) {
+    case "support":
+      return {
+        title: LEGAL_TITLES.support,
+        intro: `Need help with an order, a download or a delivery? Email ${support} and a real person will reply ${RESPONSE}.`,
+        sections: [
+          { heading: "How to reach us", paragraphs: [
+            `Email ${support}. Write from the address you used at checkout if you can, and include the product name and roughly when you bought it. That lets us find your order straight away.`,
+          ] },
+          { heading: "Digital products", paragraphs: [
+            `Your download link arrives by email within a few minutes of paying. It works for ${TOKEN_LIFETIME_DAYS} days and up to ${MAX_DOWNLOADS} downloads.`,
+            "No email? Check your spam or promotions folder first. If it isn't there, or the link has expired or stopped working, email us and we'll send a fresh one.",
+          ] },
+          { heading: "Physical orders", paragraphs: [
+            "You'll get an email with tracking details as soon as your order ships. Processing and delivery times are listed in each store's shipping policy, linked at the bottom of that store's page.",
+            "To change or cancel an order, email us as soon as possible. If your order is running late, we'll email you a new date with a link to cancel for a full refund. Once an order has shipped we can't cancel it, but you can still return it under that store's return policy.",
+          ] },
+          { heading: "Refunds and problems", paragraphs: [
+            "If something arrived damaged, a file won't open, or you were charged twice, email us and we'll put it right. Our refund policy explains exactly when we refund and how refunds are paid.",
+          ] },
+          { heading: "Your data", paragraphs: [
+            "To see, correct or delete the personal information we hold about you, email us with the subject “Delete my data” or “My data”. The privacy policy and data deletion page explain what we keep and why.",
+          ] },
+        ],
+      };
     case "privacy":
       return {
         title: LEGAL_TITLES.privacy,

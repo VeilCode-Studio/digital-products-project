@@ -8,7 +8,7 @@ import { monaSans } from "@/app/studio-fonts";
 import { SiteFooter, SiteHeader, SUPPORT_FALLBACK } from "./chrome";
 import { PageEffects } from "./page-effects";
 
-// One layout for /privacy, /terms, /refunds and /data-deletion. Styles: app/studio.css (.vc-legal).
+// One layout for /support, /privacy, /terms, /refunds and /data-deletion. Styles: app/studio.css (.vc-legal).
 
 const FALLBACK_STORE: Store = { id: "", owner_user_id: null, name: "PodStore", tagline: "", bio: "", support_email: SUPPORT_FALLBACK, website_url: null };
 const ROOT_ID = "vc-legal-page";
@@ -31,7 +31,7 @@ export async function LegalPage({ kind }: { kind: LegalKind }) {
       <main className="vc-wrap vc-legal">
         <Link className="vc-back" href="/"><ArrowLeft size={16} aria-hidden="true" /> PodStore</Link>
         <div className="vc-legal-grid">
-          <nav className="vc-legal-nav" aria-label="Legal">
+          <nav className="vc-legal-nav" aria-label="Help and policies">
             {LEGAL_KINDS.map((other) => (
               <Link key={other} href={`/${other}`} aria-current={other === kind ? "page" : undefined}>{LEGAL_TITLES[other]}</Link>
             ))}
