@@ -170,6 +170,8 @@ export class OAuthError extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message); }
 }
 
+const MAX_STATE = 8192;
+
 export type AuthorizeRequest = { client: McpClient; redirectUri: string; state: string | null; challenge: string; scopes: McpScope[] };
 
 /**
@@ -185,7 +187,9 @@ export async function readAuthorizeRequest(params: Record<string, string | undef
   if (params.response_type !== "code") throw new OAuthError("unsupported_response_type", "Only the authorization code flow is supported.");
   const challenge = params.code_challenge ?? "";
   if (params.code_challenge_method !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(challenge)) throw new OAuthError("invalid_request", "PKCE with S256 is required.");
-  const state = params.state ? params.state.slice(0, 1000) : null;
+  // state goes back exactly as sent. Some apps (Gemini) put a long signed, encrypted blob here, and any change breaks it.
+  if (params.state && params.state.length > MAX_STATE) throw new OAuthError("invalid_request", "The app sent a state value that's too long.");
+  const state = params.state || null;
   checkResource(params.resource);
   return { client, redirectUri, state, challenge, scopes: parseScopes(params.scope ?? "read research build") };
 }

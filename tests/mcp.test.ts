@@ -120,6 +120,15 @@ describe("assistant sign-in (OAuth 2.1)", () => {
     await expect(readAuthorizeRequest(params)).rejects.toThrow("don't match");
   });
 
+  it("hands a long signed state (Gemini) back unchanged, and refuses an absurd one", async () => {
+    const google = await registerClient({ client_name: "Google", redirect_uris: ["https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-test"], token_endpoint_auth_method: "client_secret_post" });
+    const longState = `AX${"q8_-Zr0+/=".repeat(260)}`;
+    const params = { client_id: google.client_id, redirect_uri: "https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-test", response_type: "code", code_challenge: CHALLENGE, code_challenge_method: "S256", state: longState };
+    const back = new URL(await approveAuthorization(await readAuthorizeRequest(params), ["read"]));
+    expect(back.searchParams.get("state")).toBe(longState);
+    await expect(readAuthorizeRequest({ ...params, state: "x".repeat(9000) })).rejects.toThrow("too long");
+  });
+
   it("signs ChatGPT in with its published client details and a private-key-signed token request", async () => {
     const CHATGPT = "https://chatgpt.com/oauth/client.json";
     const JWKS = "https://chatgpt.com/oauth/jwks.json";
