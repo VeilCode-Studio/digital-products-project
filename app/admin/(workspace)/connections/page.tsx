@@ -13,7 +13,7 @@ export default async function ConnectionsPage() {
   const [connections, activity] = await Promise.all([listConnections(), recentActivity()]);
   return <><NavSection href="/admin/connections" />
     <div className="admin-page-heading">
-      <div><span className="eyebrow">YOUR ASSISTANTS</span><h1>Connections</h1><p>Let Claude, ChatGPT, Codex and Claude Code read the store, research products and build drafts.</p></div>
+      <div><span className="eyebrow">YOUR ASSISTANTS</span><h1>Connections</h1><p>Let Claude, ChatGPT, Gemini and their command-line tools read the store, research products and build drafts.</p></div>
     </div>
     <ConnectionsView endpoint={mcpResource()} initialConnections={connections} activity={activity} />
   </>;

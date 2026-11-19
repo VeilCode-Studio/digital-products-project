@@ -6,9 +6,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { SCOPE_LABELS, SCOPES } from "@/lib/mcp/scopes";
 import type { McpActivity, McpConnection, McpScope } from "@/lib/database.types";
 
-type Client = "claude" | "chatgpt" | "claude-code" | "codex";
+type Client = "claude" | "chatgpt" | "gemini" | "claude-code" | "codex" | "gemini-cli";
 const CLIENTS: { id: Client; label: string }[] = [
-  { id: "claude", label: "Claude" }, { id: "chatgpt", label: "ChatGPT" }, { id: "claude-code", label: "Claude Code" }, { id: "codex", label: "Codex" },
+  { id: "claude", label: "Claude" }, { id: "chatgpt", label: "ChatGPT" }, { id: "gemini", label: "Gemini" },
+  { id: "claude-code", label: "Claude Code" }, { id: "codex", label: "Codex" }, { id: "gemini-cli", label: "Gemini CLI" },
 ];
 
 const when = (value: string | null) => value ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "Never";
@@ -102,6 +103,24 @@ export function ConnectionsView({ endpoint, initialConnections, activity }: { en
           <li>Accept the warning and click <b>Create as a plugin</b>. You&apos;ll sign in here and choose what ChatGPT may do.</li>
           <li>In a chat, type <b>@</b> and pick PodStore. Attached images can go straight into a draft store.</li>
         </ol>}
+        {client === "gemini" && <>
+          <ol className="conn-steps">
+            <li>On <a href="https://gemini.google.com" target="_blank" rel="noreferrer">gemini.google.com</a>, open <b>Settings → Connected apps</b> and choose <b>Add a custom app</b>.</li>
+            <li>Name it <b>PodStore</b> and paste the server address above. Leave the advanced fields empty: Gemini registers itself.</li>
+            <li>You&apos;ll sign in here and choose what Gemini may do.</li>
+          </ol>
+          <p className="conn-note">Google currently offers custom apps only to personal Google accounts in the US (18+, Keep Activity on), in the Gemini web app. If you don&apos;t see the option, use the <b>Gemini CLI</b> tab, which works anywhere.</p>
+        </>}
+        {client === "gemini-cli" && <>
+          <ol className="conn-steps">
+            <li>Run this in a terminal to add PodStore for every project:</li>
+          </ol>
+          <CopyField multiline label="Gemini CLI command" value={`gemini mcp add --transport http -s user podstore ${endpoint}`} />
+          <ol className="conn-steps" start={2}>
+            <li>Start <code>gemini</code> in a folder you trust (Gemini switches MCP servers off in untrusted folders).</li>
+            <li>Type <code>/mcp auth podstore</code>. A browser opens; sign in here and choose what Gemini may do.</li>
+          </ol>
+        </>}
         {needsToken && <>
           <ol className="conn-steps">
             <li>Create a personal token below and copy it. It&apos;s shown once.</li>

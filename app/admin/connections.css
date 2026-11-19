@@ -22,6 +22,7 @@
 .admin-shell .conn-steps { margin: 16px 0; padding-left: 20px; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.6; color: var(--ad-text); }
 .admin-shell .conn-steps li::marker { color: var(--ad-cobalt); font-weight: 650; }
 .admin-shell .conn-steps code, .admin-shell .conn-log code { font-size: 12px; padding: 1px 6px; border-radius: 6px; background: var(--ad-wash); color: var(--ad-cobalt-deep); }
+.admin-shell .conn-note { margin: 0 0 16px; padding: 12px 14px; border-radius: 10px; background: var(--ad-wash); font-size: 12.5px; line-height: 1.6; color: var(--ad-text); }
 .admin-shell .conn-token { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 18px; margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--ad-edge); }
 .admin-shell .conn-token > label { flex: 1 1 220px; margin: 0; }
 .admin-shell .conn-token input:not([type="checkbox"]) { border-radius: 10px; }
