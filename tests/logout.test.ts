@@ -14,7 +14,7 @@ describe("signing out", () => {
     const response = await post({ origin: "null", "sec-fetch-site": "same-origin" });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login`);
-    expect(deleted).toEqual(["veilcode_owner"]);
+    expect(deleted).toEqual(["veilcode_owner", "veilcode_owner_refresh"]);
   });
   it("still refuses a sign-out posted from another site", async () => {
     deleted.length = 0;

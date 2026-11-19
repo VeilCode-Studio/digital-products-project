@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
-import { authClient, getOwnerId, OWNER_COOKIE } from "@/lib/auth";
+import { authClient, getOwnerId } from "@/lib/auth";
+import { ownerSessionCookies } from "@/lib/owner-session";
 import { sameOrigin, apiError, HttpError, jsonObject } from "@/lib/http";
 import { getSupabase } from "@/lib/supabase";
 import { STORE_ID } from "@/lib/store-config";
-import { getEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 export async function POST(req: Request) {
@@ -20,10 +20,9 @@ export async function POST(req: Request) {
     }
     const { error: storeError } = await getSupabase().from("stores").update({ owner_user_id: ownerId }).eq("id", STORE_ID);
     if (storeError) throw new HttpError(503, "The store is not ready. Apply the storefront migration first.");
-    (await cookies()).set(OWNER_COOKIE, data.session.access_token, {
-      httpOnly: true, secure: new URL(getEnv().APP_URL).protocol === "https:", sameSite: "lax", path: "/",
-      maxAge: Math.min(data.session.expires_in, 3600),
-    });
+    // The refresh cookie lets proxy.ts renew the hour-long session, so the owner stays signed in.
+    const jar = await cookies();
+    for (const [name, value, options] of ownerSessionCookies(data.session)) jar.set(name, value, options);
     return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return apiError(error); }
 }

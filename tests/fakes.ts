@@ -187,10 +187,11 @@ export const rpc = vi.fn(async (name: string, args: Row) => {
 export const getUser = vi.fn();
 export const signIn = vi.fn();
 export const signOut = vi.fn();
+export const refreshSession = vi.fn();
 export const supabase = {
   from: vi.fn((table: string) => new Query(table)), rpc,
   storage: { from: vi.fn(() => ({ createSignedUrl: signUrl, createSignedUploadUrl: signedUpload, info: storageInfo, upload, download: storageDownload, exists: storageExists, list: storageList, remove: storageRemove, copy: storageCopy })) },
-  auth: { getUser, signInWithPassword: signIn, signOut },
+  auth: { getUser, signInWithPassword: signIn, signOut, refreshSession },
 };
 export const sendEmail = vi.fn();
 export const constructEvent = vi.fn();
@@ -252,7 +253,8 @@ export function resetFakes() {
   oauthDeauthorize.mockReset().mockResolvedValue({ stripe_user_id: "acct_seller" });
   oauthAuthorizeUrl.mockReset().mockImplementation((params: Record<string, string>) => `https://connect.stripe.com/oauth/authorize?${new URLSearchParams(params)}`);
   getUser.mockReset().mockResolvedValue({ data: { user: { id: OWNER_ID, email: "owner@example.com" } }, error: null });
-  signIn.mockReset().mockResolvedValue({ data: { user: { id: OWNER_ID }, session: { access_token: "owner-token", expires_in: 3600 } }, error: null });
+  signIn.mockReset().mockResolvedValue({ data: { user: { id: OWNER_ID }, session: { access_token: "owner-token", refresh_token: "owner-refresh", expires_in: 3600 } }, error: null });
+  refreshSession.mockReset();
   signOut.mockReset().mockResolvedValue({ error: null });
 }
 

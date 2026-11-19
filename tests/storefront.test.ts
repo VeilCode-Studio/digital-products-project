@@ -47,6 +47,7 @@ describe("owner authentication and access", () => {
     const response = await loginRoute(request("/api/admin/login", { email: "owner@example.com", password: "secret" }));
     expect(response.status).toBe(200);
     expect(setCookie).toHaveBeenCalledWith("veilcode_owner", "owner-token", expect.objectContaining({ httpOnly: true, secure: true, sameSite: "lax", maxAge: 3600 }));
+    expect(setCookie).toHaveBeenCalledWith("veilcode_owner_refresh", "owner-refresh", expect.objectContaining({ httpOnly: true, secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30 }));
   });
   it("rejects valid Supabase users who are not the configured owner", async () => {
     signIn.mockResolvedValueOnce({ data: { user: { id: randomUUID() }, session: { access_token: "other", expires_in: 3600 } }, error: null });
