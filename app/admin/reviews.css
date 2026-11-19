@@ -1,0 +1,22 @@
+/* Reviews page (components/reviews-admin.tsx). */
+
+.admin-shell .rv-tabs .count { margin-left: 4px; opacity: .7; }
+.admin-shell .rv-list { margin: 0; padding: 0; list-style: none; }
+.admin-shell .rv-list li { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; padding: 20px 26px; border-top: 1px solid var(--ad-edge); }
+.admin-shell .rv-main { display: grid; gap: 6px; min-width: 0; }
+.admin-shell .rv-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--ad-soft); }
+.admin-shell .rv-stars { display: inline-flex; gap: 1px; color: #f5b400; }
+.admin-shell .rv-title { font-size: 14.5px; color: var(--ad-text); }
+.admin-shell .rv-main p { font-size: 13.5px; line-height: 1.6; color: var(--ad-text); white-space: pre-line; overflow-wrap: anywhere; }
+.admin-shell .rv-main p.rv-empty { color: var(--ad-soft); font-style: italic; }
+.admin-shell .rv-main small { font-size: 12px; color: var(--ad-soft); }
+.admin-shell .rv-actions { flex: none; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+@media (max-width: 700px) { .admin-shell .rv-list li { flex-direction: column; padding: 18px; } .admin-shell .rv-actions { justify-content: flex-start; } }
+.admin-shell .rv-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 24px 0 4px; }
+.admin-shell .rv-tabs button {
+  border: 1px solid var(--ad-edge); background: #f6f7fb; color: var(--ad-soft); border-radius: 999px; padding: 8px 15px;
+  font: inherit; font-size: 13px; font-weight: 560; cursor: pointer; transition: background .2s ease, color .2s ease;
+}
+.admin-shell .rv-tabs button:hover { color: var(--ad-text); }
+.admin-shell .rv-tabs button.active { background: var(--ad-ink); border-color: var(--ad-ink); color: #fff; }
+.admin-shell .rv-tabs { margin: 0; }

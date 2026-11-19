@@ -9,6 +9,8 @@ import { AdEvent } from "@/components/storefront/tiktok";
 import { previewPath, signInForPreview } from "@/lib/preview-access";
 import { JsonLd } from "@/components/site/json-ld";
 import { physicalProductLd } from "@/lib/seo";
+import { approvedReviews, type PublicReview } from "@/lib/reviews";
+import type { Section } from "@/lib/store-page";
 import "./storefront.css";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +47,24 @@ function money(amount: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: amount % 100 ? 2 : 0 }).format(amount / 100);
 }
 
+/**
+ * Approved buyer reviews (lib/reviews.ts) go first in the store's reviews section, labelled as verified.
+ * A store without a reviews section gets one, placed before the FAQ or closing call to action.
+ */
+function withVerifiedReviews(sections: Section[], verified: PublicReview[]): Section[] {
+  if (!verified.length) return sections;
+  const items = verified.map((review) => ({ name: review.display_name, location: "Verified buyer", rating: review.rating, title: review.title ?? "", text: review.body ?? "", media: null }));
+  const index = sections.findIndex((section) => section.type === "reviews");
+  if (index >= 0) {
+    const existing = sections[index];
+    if (existing.type !== "reviews") return sections;
+    return sections.map((section, at) => at === index ? { ...existing, data: { ...existing.data, items: [...items, ...existing.data.items] } } : section);
+  }
+  const before = sections.findIndex((section) => section.type === "faq" || section.type === "final_cta");
+  const added: Section = { id: "verified-reviews", type: "reviews", enabled: true, data: { title: "What customers say", items } };
+  return before >= 0 ? [...sections.slice(0, before), added, ...sections.slice(before)] : [...sections, added];
+}
+
 export default async function StorePage(props: Params) {
   const { store, query } = await load(props);
   if (!store) {
@@ -69,7 +89,8 @@ export default async function StorePage(props: Params) {
     );
   }
 
-  const sections = store.page.sections.filter((section) => section.enabled);
+  const ratings = store.product.draft ? null : await approvedReviews(store.product.id).catch(() => null);
+  const sections = withVerifiedReviews(store.page.sections.filter((section) => section.enabled), ratings?.reviews ?? []);
   const announcement = sections.find((section) => section.type === "announcement");
   const lowest = Math.min(...store.variants.map((variant) => variant.price));
   const variesInPrice = store.variants.some((variant) => variant.price !== lowest);
@@ -91,7 +112,7 @@ export default async function StorePage(props: Params) {
       {(store.brand.tiktokPixelId || store.brand.metaPixelId) && <AdEvent event="ViewContent" params={{
         content_type: "product", content_id: store.product.id, content_name: store.product.name, currency: store.product.currency.toUpperCase(), value: lowest / 100,
       }} />}
-      {!store.product.draft && <JsonLd data={physicalProductLd(store, hero.data.media.filter((item) => item.kind === "image").map((item) => store.mediaBase + item.path).slice(0, 6))} />}
+      {!store.product.draft && <JsonLd data={physicalProductLd(store, hero.data.media.filter((item) => item.kind === "image").map((item) => store.mediaBase + item.path).slice(0, 6), ratings)} />}
       <main id="top">
         {query.checkout === "cancelled" && <p className="st-shell st-notice" role="status">Checkout was cancelled and you haven&apos;t been charged.</p>}
         {sections.map((section) => section.type === "hero"

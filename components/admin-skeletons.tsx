@@ -173,6 +173,15 @@ export function SkSubscribers() {
   </Busy>;
 }
 
+export function SkReviews() {
+  return <Busy label="Loading reviews">
+    <SkHeading eyebrow="FROM PEOPLE WHO BOUGHT" title="Reviews" text="Buyers are asked once, a few days after their order arrives. Publish the reviews you want on your product pages." />
+    <div className="an-kpis">{[0, 1, 2, 3].map((index) => <div className="an-kpi" key={index}><Bone w={90} h={11} /><Bone w={50} h={26} className="sk-gap" /><Bone w={120} h={10} className="sk-gap" /></div>)}</div>
+    <section className="workspace-panel"><div className="panel-heading"><div className="sk-row">{[0, 1, 2].map((index) => <Bone key={index} w={96} h={34} r={999} />)}</div></div>
+      {Array.from({ length: 3 }, (_, index) => <div className="sk-line-row" key={index}><div className="sk-grow"><Bone w={110} h={12} /><Bone w="70%" h={12} className="sk-gap" /><Bone w="50%" h={12} className="sk-gap" /></div><Bone w={90} h={32} r={10} /><Bone w={70} h={32} r={10} /></div>)}</section>
+  </Busy>;
+}
+
 /** Any other workspace page: a heading and a panel of rows. */
 export function SkGeneric() {
   return <Busy label="Loading your workspace">

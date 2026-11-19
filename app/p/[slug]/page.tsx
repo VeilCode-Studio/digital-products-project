@@ -16,6 +16,8 @@ import { SUPPORT_FALLBACK, coverSrc, shortName } from "@/components/site/chrome"
 import { JsonLd } from "@/components/site/json-ld";
 import { GiftSignup } from "@/components/site/gift-signup";
 import { currentGift } from "@/lib/subscribers";
+import { approvedReviews } from "@/lib/reviews";
+import { ProductReviews } from "@/components/site/product-reviews";
 import { digitalProductLd } from "@/lib/seo";
 import { monaSans } from "../../studio-fonts";
 import "../../studio.css";
@@ -54,7 +56,10 @@ export default async function ProductPage(props: Params) {
   const { product, query } = await load(props);
   const draft = product?.status !== "published";
   if (!product || (!draft && product.price_amount === null)) notFound();
-  const [store, products, gift] = await Promise.all([getStore(), listProducts(true, "digital"), currentGift().catch(() => null)]);
+  const [store, products, gift, ratings] = await Promise.all([
+    getStore(), listProducts(true, "digital"), currentGift().catch(() => null),
+    draft ? null : approvedReviews(product.id).catch(() => null),
+  ]);
   const cancelled = query.checkout === "cancelled";
   const price = product.price_amount === null ? "Price not set" : formatMoney(product.price_amount, product.currency);
   const support = store.support_email || SUPPORT_FALLBACK;
@@ -67,7 +72,7 @@ export default async function ProductPage(props: Params) {
     <div id={ROOT_ID} className={`vc vc-pd-page ${monaSans.variable}`}>
       <PageEffects rootId={ROOT_ID} />
 
-      {!draft && <JsonLd data={digitalProductLd(product)} />}
+      {!draft && <JsonLd data={digitalProductLd(product, ratings)} />}
       <main className="vc-wrap vc-pd">
         {draft && (
           <div className="vc-pd-draft" role="status">
@@ -128,6 +133,8 @@ export default async function ProductPage(props: Params) {
           </div>
         </div>
       </main>
+
+      {ratings && <ProductReviews reviews={ratings.reviews} average={ratings.average} />}
 
       {!draft && gift && gift.id !== product.id && <GiftSignup name={gift.shortName} tagline={gift.tagline} />}
 
