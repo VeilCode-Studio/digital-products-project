@@ -56,21 +56,23 @@ export function legalDocument(kind: LegalKind, support: string): LegalDocument {
           { heading: "What we collect", paragraphs: [
             "When you buy, we receive your name, email address, billing country and the details of your order. You enter card details on Stripe's secure checkout, and we never see or store them in full.",
             "When you email us, we keep the message and your email address so we can answer you.",
+            "When you ask for a free download, we keep your email address to send it. If you also tick the box to hear about new products and offers, we record that choice, the exact wording you agreed to and when.",
             "Our hosting provider keeps short-lived technical logs, such as IP address, browser type and the pages requested, to keep the site secure and working.",
           ] },
           { heading: "How we use it", paragraphs: [
             `We use your information to take payment, email your download link (it works for ${TOKEN_LIFETIME_DAYS} days and up to ${MAX_DOWNLOADS} downloads), answer your questions, handle refunds, prevent fraud, and keep the records the law requires.`,
-            "We don't sell your personal information, and we don't send marketing emails unless you've asked for them.",
+            "We don't sell your personal information, and we don't send marketing emails unless you've asked for them. Every marketing email has an unsubscribe link, and unsubscribing takes effect straight away.",
           ] },
           { heading: "Who we share it with", paragraphs: [
             "We share only what each service needs to do its job: Stripe processes payments, Resend sends our emails, Supabase stores orders and product files, and Vercel hosts the site. Each one handles your data under its own privacy terms and only on our instructions.",
             "We use Meta's Ad Library to research products. That tool reads public advertising data only. It doesn't receive anything about you, and this site has no Facebook login for visitors.",
           ] },
           { heading: "Cookies", paragraphs: [
-            "The pages of the digital collection don't use advertising or analytics cookies. The only cookie we set keeps the studio owner signed in to the admin area. If that changes, we'll update this policy first.",
+            "The pages of the digital collection don't use advertising or analytics cookies. If you arrive through one of our short links (for example from a video), we set a small cookie for 30 days that remembers which link it was, so we can tell which videos lead to sales. It holds only the link's name, nothing about you. The only other cookie keeps the studio owner signed in to the admin area. If this changes, we'll update this policy first.",
           ] },
           { heading: "How long we keep it", paragraphs: [
             "We keep order records for as long as we need them for delivery, refunds, accounting and legal obligations, typically up to seven years, and then delete them. Download links stop working after they expire.",
+            "We keep your email address on our list until you ask us to remove it. Unsubscribing stops marketing emails at once; to have the address deleted entirely, email us.",
           ] },
           { heading: "Your rights", paragraphs: [
             `You can ask what information we hold about you, or ask us to correct or delete it, by emailing ${support}. We'll reply ${RESPONSE}. Depending on where you live, you may also be able to complain to your local data protection authority.`,

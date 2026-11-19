@@ -12,6 +12,8 @@ import { PageEffects } from "@/components/site/page-effects";
 import { Monogram } from "@/components/site/monogram";
 import { ProductTile, SiteFooter, SiteHeader, SUPPORT_FALLBACK, coverSrc } from "@/components/site/chrome";
 import { JsonLd } from "@/components/site/json-ld";
+import { GiftSignup } from "@/components/site/gift-signup";
+import { currentGift, type Gift } from "@/lib/subscribers";
 import { organizationLd } from "@/lib/seo";
 import { monaSans } from "../studio-fonts";
 import "../studio.css";
@@ -30,12 +32,14 @@ export default async function Home() {
   let store: Store;
   let products: CatalogProduct[];
   let goods: StoreCard[];
+  let gift: Gift | null;
   try {
-    [store, products, goods] = await Promise.all([
+    [store, products, goods, gift] = await Promise.all([
       getStore(),
       listProducts(true, "digital"),
       // A problem with the physical stores must never take the rest of the homepage down.
       listStoreCards().catch((cause) => { console.error("Homepage stores unavailable", cause); return []; }),
+      currentGift().catch(() => null),
     ]);
   } catch {
     return <Unavailable />;
@@ -190,6 +194,8 @@ export default async function Home() {
             )}
           </div>
         </section>
+
+        {gift && <GiftSignup name={gift.shortName} tagline={gift.tagline} />}
 
         <section id="questions" className="vc-section vc-wrap vc-faq" aria-labelledby="vc-faq-title">
           <h2 id="vc-faq-title" className="vc-heading" data-reveal>Good to know.</h2>

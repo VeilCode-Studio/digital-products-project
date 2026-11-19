@@ -11,6 +11,8 @@ export type Store = {
   id: string; owner_user_id: string | null; name: string; tagline: string;
   bio: string; support_email: string; website_url: string | null;
   enabled_markets?: Market[];
+  /** The digital product given away for an email address (lib/subscribers.ts). */
+  gift_product_id?: string | null;
 };
 export type CatalogProduct = {
   id: string; store_id: string; slug: string; name: string; tagline: string;

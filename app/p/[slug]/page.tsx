@@ -14,6 +14,8 @@ import { PageEffects } from "@/components/site/page-effects";
 import { StickyBuy } from "@/components/site/sticky-buy";
 import { SUPPORT_FALLBACK, coverSrc, shortName } from "@/components/site/chrome";
 import { JsonLd } from "@/components/site/json-ld";
+import { GiftSignup } from "@/components/site/gift-signup";
+import { currentGift } from "@/lib/subscribers";
 import { digitalProductLd } from "@/lib/seo";
 import { monaSans } from "../../studio-fonts";
 import "../../studio.css";
@@ -52,7 +54,7 @@ export default async function ProductPage(props: Params) {
   const { product, query } = await load(props);
   const draft = product?.status !== "published";
   if (!product || (!draft && product.price_amount === null)) notFound();
-  const [store, products] = await Promise.all([getStore(), listProducts(true, "digital")]);
+  const [store, products, gift] = await Promise.all([getStore(), listProducts(true, "digital"), currentGift().catch(() => null)]);
   const cancelled = query.checkout === "cancelled";
   const price = product.price_amount === null ? "Price not set" : formatMoney(product.price_amount, product.currency);
   const support = store.support_email || SUPPORT_FALLBACK;
@@ -126,6 +128,8 @@ export default async function ProductPage(props: Params) {
           </div>
         </div>
       </main>
+
+      {!draft && gift && gift.id !== product.id && <GiftSignup name={gift.shortName} tagline={gift.tagline} />}
 
       {related.length > 0 && (
         <section className="vc-related vc-wrap" aria-labelledby="vc-related-title">
