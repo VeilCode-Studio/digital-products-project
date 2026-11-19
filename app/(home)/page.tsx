@@ -11,6 +11,8 @@ import { HeroStage } from "@/components/site/hero-stage";
 import { PageEffects } from "@/components/site/page-effects";
 import { Monogram } from "@/components/site/monogram";
 import { ProductTile, SiteFooter, SiteHeader, SUPPORT_FALLBACK, coverSrc } from "@/components/site/chrome";
+import { JsonLd } from "@/components/site/json-ld";
+import { organizationLd } from "@/lib/seo";
 import { monaSans } from "../studio-fonts";
 import "../studio.css";
 
@@ -18,6 +20,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: { absolute: "PodStore | Made to be used" },
   description: "Ready-to-run business systems and carefully chosen products from PodStore, an independent studio.",
+  alternates: { canonical: "/" },
+  openGraph: { title: "PodStore | Made to be used", description: "Ready-to-run business systems and carefully chosen products from PodStore, an independent studio.", url: "/" },
 };
 
 const ROOT_ID = "vc-home";
@@ -46,6 +50,7 @@ export default async function Home() {
       <PageEffects rootId={ROOT_ID} />
       <span className="vc-sentinel" data-top-sentinel aria-hidden="true" />
       <SiteHeader />
+      <JsonLd data={organizationLd()} />
 
       <main>
         <section className="vc-hero vc-wrap" aria-labelledby="vc-hero-title">

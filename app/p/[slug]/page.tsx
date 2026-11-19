@@ -13,6 +13,8 @@ import { Monogram } from "@/components/site/monogram";
 import { PageEffects } from "@/components/site/page-effects";
 import { StickyBuy } from "@/components/site/sticky-buy";
 import { SUPPORT_FALLBACK, coverSrc, shortName } from "@/components/site/chrome";
+import { JsonLd } from "@/components/site/json-ld";
+import { digitalProductLd } from "@/lib/seo";
 import { monaSans } from "../../studio-fonts";
 import "../../studio.css";
 
@@ -32,6 +34,11 @@ export async function generateMetadata(props: Params): Promise<Metadata> {
   if (!product) return { title: "Product not found" };
   return {
     title: product.name, description: product.tagline || undefined,
+    alternates: { canonical: `/p/${product.slug}` },
+    openGraph: {
+      title: product.name, description: product.tagline || undefined, url: `/p/${product.slug}`,
+      images: product.cover_path && product.status === "published" ? [{ url: coverSrc(product), alt: `${product.name} cover` }] : undefined,
+    },
     ...(product.status !== "published" ? { robots: { index: false, follow: false } } : {}),
   };
 }
@@ -58,6 +65,7 @@ export default async function ProductPage(props: Params) {
     <div id={ROOT_ID} className={`vc vc-pd-page ${monaSans.variable}`}>
       <PageEffects rootId={ROOT_ID} />
 
+      {!draft && <JsonLd data={digitalProductLd(product)} />}
       <main className="vc-wrap vc-pd">
         {draft && (
           <div className="vc-pd-draft" role="status">

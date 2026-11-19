@@ -5,6 +5,8 @@ import { deploymentLabel } from "@/lib/env";
 // Evaluated per deployment: Vercel builds each environment with its own variables.
 const environment = deploymentLabel();
 const production = environment === "production";
+// Link previews and canonical links need absolute URLs; a misconfigured preview falls back to relative ones.
+const metadataBase = (() => { try { return new URL(process.env.APP_URL ?? ""); } catch { return undefined; } })();
 
 export const metadata: Metadata = {
   title: { default: "PodStore", template: "%s | PodStore" },
@@ -12,6 +14,9 @@ export const metadata: Metadata = {
   // Only production may be indexed; a preview must never compete with the real store.
   robots: production ? { index: true, follow: true } : { index: false, follow: false },
   referrer: "no-referrer",
+  metadataBase,
+  openGraph: { siteName: "PodStore", type: "website", locale: "en_US" },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -7,6 +7,8 @@ import { reviewSummary, StoreSection } from "@/components/storefront/sections";
 import { StoreFrame } from "@/components/storefront/store-frame";
 import { AdEvent } from "@/components/storefront/tiktok";
 import { previewPath, signInForPreview } from "@/lib/preview-access";
+import { JsonLd } from "@/components/site/json-ld";
+import { physicalProductLd } from "@/lib/seo";
 import "./storefront.css";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +35,8 @@ export async function generateMetadata(props: Params): Promise<Metadata> {
   return {
     title: { absolute: title },
     description: store.product.tagline || heroOf(store)?.data.subheadline || undefined,
-    openGraph: { title, description: store.product.tagline || undefined, images: image ? [{ url: store.mediaBase + image.path, alt: image.alt }] : undefined },
+    alternates: { canonical: `/s/${store.product.slug}` },
+    openGraph: { title, description: store.product.tagline || undefined, url: `/s/${store.product.slug}`, images: image ? [{ url: store.mediaBase + image.path, alt: image.alt }] : undefined },
     ...(store.product.draft ? { robots: { index: false, follow: false } } : {}),
   };
 }
@@ -88,6 +91,7 @@ export default async function StorePage(props: Params) {
       {(store.brand.tiktokPixelId || store.brand.metaPixelId) && <AdEvent event="ViewContent" params={{
         content_type: "product", content_id: store.product.id, content_name: store.product.name, currency: store.product.currency.toUpperCase(), value: lowest / 100,
       }} />}
+      {!store.product.draft && <JsonLd data={physicalProductLd(store, hero.data.media.filter((item) => item.kind === "image").map((item) => store.mediaBase + item.path).slice(0, 6))} />}
       <main id="top">
         {query.checkout === "cancelled" && <p className="st-shell st-notice" role="status">Checkout was cancelled and you haven&apos;t been charged.</p>}
         {sections.map((section) => section.type === "hero"
