@@ -196,11 +196,18 @@ describe("CJ Dropshipping", () => {
       if (input.endsWith("/authentication/getAccessToken")) return Response.json({ code: 200, result: true, data: { accessToken: "tok-1", accessTokenExpiryDate: "2027-05-12T07:11:03+08:00" } });
       if (input.includes("/product/query")) {
         if (limited) { limited = false; return Response.json({ code: 1600200, result: false, message: "Too many requests" }, { status: 429 }); }
+        // As CJ really answers: no stock on product/query, which comes from getInventoryByPid instead.
         return Response.json({ code: 200, result: true, data: { pid: "P1", productNameEn: "Galaxy Projector", sellPrice: 9.5, variants: [
-          { vid: "v1", variantSellPrice: 9.5, inventories: [{ countryCode: "US", totalInventory: 40 }, { countryCode: "CN", totalInventory: "100" }] },
-          { vid: "v2", variantSellPrice: 11, inventories: [{ countryCode: "CN", totalInventory: 0 }] },
+          { vid: "v1", variantSellPrice: 9.5, inventories: null }, { vid: "v2", variantSellPrice: 11, inventories: null },
         ] } });
       }
+      if (input.includes("/product/stock/getInventoryByPid")) return Response.json({ code: 200, result: true, data: {
+        inventories: [{ countryCode: "US", totalInventoryNum: 40 }, { countryCode: "CN", totalInventoryNum: 100 }],
+        variantInventories: [
+          { vid: "v1", inventory: [{ countryCode: "US", totalInventory: 40 }, { countryCode: "CN", totalInventory: "100" }] },
+          { vid: "v2", inventory: [{ countryCode: "CN", totalInventory: 0 }] },
+        ],
+      } });
       if (input.includes("/logistic/freightCalculate")) {
         const body = JSON.parse(String(init?.body));
         origins.push(body.startCountryCode);

@@ -119,7 +119,7 @@ export async function searchCj(keyword: string, usStock = false): Promise<CjProd
 }
 
 type Inventory = { countryCode?: string; totalInventory?: number | string };
-type DetailVariant = { vid?: string; variantSku?: string; variantSellPrice?: number | string; inventories?: Inventory[] };
+type DetailVariant = { vid?: string; variantSku?: string; variantSellPrice?: number | string; inventories?: Inventory[] | null };
 
 /** A variant's stock across CJ's warehouses, and in the US. Null when CJ didn't say (never read as sold out). */
 export function variantStock(inventories: Inventory[] | undefined) {
@@ -132,6 +132,22 @@ export function variantStock(inventories: Inventory[] | undefined) {
   }
   return { total, us };
 }
+
+type Stock = ReturnType<typeof variantStock>;
+type InventoryByPid = { variantInventories?: { vid?: string; inventory?: Inventory[] }[] };
+
+/**
+ * Each variant's stock, by CJ variant id. product/query leaves `inventories` empty in practice, so stock
+ * comes from its own call. Null when CJ can't say right now: unknown stock is never read as sold out.
+ */
+export async function cjInventory(pid: string): Promise<Map<string, Stock> | null> {
+  const data = await cj<InventoryByPid>(`/product/stock/getInventoryByPid?${new URLSearchParams({ pid })}`).catch(() => null);
+  if (!data || !Array.isArray(data.variantInventories)) return null;
+  return new Map(data.variantInventories.filter((variant) => variant.vid).map((variant) => [variant.vid!, variantStock(variant.inventory)]));
+}
+
+const stockFor = (variant: DetailVariant, inventory: Map<string, Stock> | null): Stock =>
+  (variant.vid && inventory?.get(variant.vid)) || variantStock(variant.inventories ?? undefined);
 
 type Detail = { pid?: string; productNameEn?: string; bigImage?: string; sellPrice?: number | string; variants?: DetailVariant[] };
 type Freight = { logisticName?: string; logisticPrice?: number | string; logisticAging?: string }[];
@@ -157,7 +173,8 @@ export async function cjDetail(pid: string): Promise<CjDetail> {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(pid)) throw new HttpError(400, "That CJ product id isn't valid.");
   const product = await cj<Detail>(`/product/query?${new URLSearchParams({ pid })}`);
   const variants = (product.variants ?? []).filter((variant) => variant.vid);
-  const priced = variants.map((variant) => ({ vid: variant.vid!, cost: toCents(variant.variantSellPrice), stock: variantStock(variant.inventories) }))
+  const inventory = variants.length ? await cjInventory(pid) : null;
+  const priced = variants.map((variant) => ({ vid: variant.vid!, cost: toCents(variant.variantSellPrice), stock: stockFor(variant, inventory) }))
     .filter((variant) => variant.cost !== null);
   const cheapest = priced.sort((a, b) => a.cost! - b.cost!)[0];
   const cost = cheapest?.cost ?? toCents(product.sellPrice);
@@ -169,7 +186,7 @@ export async function cjDetail(pid: string): Promise<CjDetail> {
     if ((cheapest.stock.us ?? 0) > 0) { shipping = await cheapestQuote(cheapest.vid, "US"); if (shipping) shipsFrom = "US"; }
     if (!shipping) { shipping = await cheapestQuote(cheapest.vid, "CN"); if (shipping) shipsFrom = "CN"; }
   }
-  const stocks = variants.map((variant) => variantStock(variant.inventories));
+  const stocks = variants.map((variant) => stockFor(variant, inventory));
   const known = stocks.some((stock) => stock.total !== null);
   const name = (product.productNameEn ?? "CJ product").slice(0, 200);
   return {
@@ -205,8 +222,9 @@ export async function cjVariantPrices(pid: string): Promise<CjVariantPrice[] | n
     throw error;
   });
   if (!product) return null;
+  const inventory = product.variants?.length ? await cjInventory(pid) : null;
   const variants = (product.variants ?? [])
-    .map((variant) => ({ vid: variant.vid ?? "", sku: variant.variantSku ?? null, cost: toCents(variant.variantSellPrice), stock: variantStock(variant.inventories).total }))
+    .map((variant) => ({ vid: variant.vid ?? "", sku: variant.variantSku ?? null, cost: toCents(variant.variantSellPrice), stock: stockFor(variant, inventory).total }))
     .filter((variant): variant is { vid: string; sku: string | null; cost: number; stock: number | null } => !!variant.vid && variant.cost !== null);
   if (variants.length) return variants;
   const cost = toCents(product.sellPrice);
