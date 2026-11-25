@@ -3,7 +3,7 @@ import { getSupabase } from "./supabase";
 import { HttpError } from "./http";
 import { STORE_ID } from "./store-config";
 import { cardFee } from "./research.types";
-import { cjConfigured, cjPidFromUrl, cjVariantPrices } from "./cj";
+import { cjConfigured, cjPidFromUrl, cjVariantPrices, type CjVariantPrice } from "./cj";
 import { variantLabel } from "./storefront";
 import type { CatalogProduct, ProductVariant } from "./catalog.types";
 import type { Order } from "./database.types";
@@ -150,9 +150,26 @@ export async function learnFromOrder(order: Order, supplierCost: number) {
   }
 }
 
-/** The daily CJ check: re-price CJ variants and flag any that got dearer or disappeared. */
-export async function checkCjPrices(limit = 25) {
+/** CJ stock at or below this raises a "running low" alert. */
+export const LOW_STOCK = 20;
+
+/** Which CJ variant a store variant is: by CJ's variant id or SKU in the supplier SKU field, or the only one there is. */
+export function matchCjVariant(prices: CjVariantPrice[], supplierSku: string | null) {
+  const sku = supplierSku?.trim();
+  if (sku) {
+    const match = prices.find((price) => price.vid === sku || (price.sku !== null && price.sku.toLowerCase() === sku.toLowerCase()));
+    if (match) return match;
+  }
+  return prices.length === 1 ? prices[0] : null;
+}
+
+/**
+ * The daily CJ check: re-price CJ variants, flag any that got dearer, ran low or out, or disappeared.
+ * The products checked longest ago go first, so every product gets its turn even past the daily limit.
+ */
+export async function checkCjPrices(limit = 25, budgetMs = 40_000) {
   if (!cjConfigured()) return { checked: 0, alerts: 0, skipped: "CJ_API_KEY not set" };
+  const started = Date.now();
   const db = getSupabase();
   const { data, error } = await db.from("product_variants").select("*").eq("store_id", STORE_ID).eq("active", true);
   if (error) throw new Error("Could not load variants");
@@ -162,21 +179,31 @@ export async function checkCjPrices(limit = 25) {
     const pid = cjPidFromUrl(variant.supplier_url)!;
     byPid.set(pid, [...(byPid.get(pid) ?? []), variant]);
   }
+  const lastChecked = (variants: CostVariant[]) => Math.min(...variants.map((variant) => variant.supplier_checked_at ? Date.parse(variant.supplier_checked_at) || 0 : 0));
+  const queue = [...byPid].sort((a, b) => lastChecked(a[1]) - lastChecked(b[1])).slice(0, limit);
   let checked = 0; let alerts = 0;
   const now = new Date().toISOString();
-  for (const [pid, variants] of [...byPid].slice(0, limit)) {
+  for (const [pid, variants] of queue) {
+    // CJ allows about one call a second; stop in time for the daily job's other tasks. The rest go first tomorrow.
+    if (Date.now() - started > budgetMs) break;
     const prices = await cjVariantPrices(pid).catch(() => undefined);
     if (prices === undefined) continue;
     for (const variant of variants) {
-      let alert: string | null = null; let seen: number | null = null;
-      if (prices === null || !prices.length) alert = "CJ no longer lists this product.";
+      const notes: string[] = []; let seen: number | null = null;
+      if (prices === null || !prices.length) notes.push("CJ no longer lists this product.");
       else {
-        const match = prices.find((price) => price.vid === variant.supplier_sku || (price.sku && price.sku === variant.supplier_sku));
-        seen = (match ?? [...prices].sort((a, b) => a.cost - b.cost)[0]).cost;
-        if (variant.unit_cost !== null && variant.unit_cost !== undefined && seen > variant.unit_cost * (1 + PRICE_RISE)) {
-          alert = `CJ now charges ${(seen / 100).toFixed(2)}, up from ${(variant.unit_cost / 100).toFixed(2)}.`;
+        const match = matchCjVariant(prices, variant.supplier_sku);
+        if (!match) notes.push("Can't tell which CJ variant this is. Put CJ's variant SKU in this variant's supplier SKU.");
+        else {
+          seen = match.cost;
+          if (variant.unit_cost !== null && variant.unit_cost !== undefined && seen > variant.unit_cost * (1 + PRICE_RISE)) {
+            notes.push(`CJ now charges ${(seen / 100).toFixed(2)}, up from ${(variant.unit_cost / 100).toFixed(2)}.`);
+          }
+          if (match.stock === 0) notes.push("CJ is out of stock of this variant.");
+          else if (typeof match.stock === "number" && match.stock <= LOW_STOCK) notes.push(`CJ has only ${match.stock} left.`);
         }
       }
+      const alert = notes.length ? notes.join(" ") : null;
       const changes: Partial<CostVariant> = { supplier_checked_at: now, supplier_price_seen: seen, supplier_alert: alert };
       // A variant with no recorded cost yet starts from CJ's price.
       if ((variant.unit_cost === null || variant.unit_cost === undefined) && seen !== null) Object.assign(changes, { unit_cost: seen, cost_source: "cj" as const, cost_updated_at: now });

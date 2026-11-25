@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetFakes, state } from "./fakes";
 import { parseResearchFields } from "../lib/research";
-import { cardFee, longestRunning, unitEconomics } from "../lib/research.types";
+import { cardFee, cjNotes, longestRunning, unitEconomics } from "../lib/research.types";
 import { searchMetaAds, summariseAds } from "../lib/meta-ads";
-import { cjDetail, cjProductUrl, toCents } from "../lib/cj";
+import { cjDetail, cjProductUrl, searchCj, toCents } from "../lib/cj";
 
 const jar = vi.hoisted(() => new Map<string, string>());
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => jar.has(name) ? { value: jar.get(name) } : undefined, set: vi.fn(), delete: vi.fn() }) }));
@@ -180,10 +180,55 @@ describe("CJ Dropshipping", () => {
       }
       throw new Error(`Unexpected ${input}`);
     }));
-    expect(await cjDetail("DC8C-1")).toMatchObject({ source: "cj", name: "Posture Belt", cost: 95, shipping: 649, shippingName: "CJPacket", days: "5-11 days", variants: 2 });
+    expect(await cjDetail("DC8C-1")).toMatchObject({ source: "cj", name: "Posture Belt", cost: 95, shipping: 649, shippingName: "CJPacket", days: "5-11 days", variants: 2, shipsFrom: "CN", stock: null, usStock: null });
     await cjDetail("DC8C-1");
     expect(calls.filter((call) => call.includes("getAccessToken"))).toHaveLength(1);
     expect(state.integration_tokens[0]).toMatchObject({ provider: "cj", access_token: "tok-1" });
     await expect(cjDetail("../etc")).rejects.toThrow("isn't valid");
+  });
+
+  it("quotes from CJ's US warehouse when it holds the variant, falls back to China, and waits out a rate limit", async () => {
+    vi.stubEnv("CJ_API_KEY", "CJ123@api@key");
+    const origins: string[] = [];
+    let usQuotes: unknown[] = [{ logisticName: "USPS", logisticPrice: 4.2, logisticAging: "2-5" }];
+    let limited = true;
+    vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.endsWith("/authentication/getAccessToken")) return Response.json({ code: 200, result: true, data: { accessToken: "tok-1", accessTokenExpiryDate: "2027-05-12T07:11:03+08:00" } });
+      if (input.includes("/product/query")) {
+        if (limited) { limited = false; return Response.json({ code: 1600200, result: false, message: "Too many requests" }, { status: 429 }); }
+        return Response.json({ code: 200, result: true, data: { pid: "P1", productNameEn: "Galaxy Projector", sellPrice: 9.5, variants: [
+          { vid: "v1", variantSellPrice: 9.5, inventories: [{ countryCode: "US", totalInventory: 40 }, { countryCode: "CN", totalInventory: "100" }] },
+          { vid: "v2", variantSellPrice: 11, inventories: [{ countryCode: "CN", totalInventory: 0 }] },
+        ] } });
+      }
+      if (input.includes("/logistic/freightCalculate")) {
+        const body = JSON.parse(String(init?.body));
+        origins.push(body.startCountryCode);
+        return Response.json({ code: 200, result: true, data: body.startCountryCode === "US" ? usQuotes : [{ logisticName: "CJPacket", logisticPrice: 6.49, logisticAging: "8-15" }] });
+      }
+      throw new Error(`Unexpected ${input}`);
+    }));
+    expect(await cjDetail("P1")).toMatchObject({ cost: 950, shipping: 420, shippingName: "USPS (US warehouse)", days: "2-5 days", shipsFrom: "US", stock: 140, usStock: 40 });
+    expect(origins).toEqual(["US"]);
+
+    usQuotes = [];
+    expect(await cjDetail("P1")).toMatchObject({ shipping: 649, shippingName: "CJPacket", shipsFrom: "CN" });
+    expect(origins).toEqual(["US", "US", "CN"]);
+    expect(cjNotes({ listed: 1200 }, { stock: 140, usStock: 40, shipsFrom: "US" })).toBe("Listed by 1,200 stores on CJ. 140 in stock at CJ, 40 in its US warehouse. Shipping quoted from CJ's US warehouse.");
+    expect(cjNotes({ listed: null }, { stock: 0, usStock: 0, shipsFrom: null })).toBe("CJ is out of stock.");
+  });
+
+  it("searches only CJ's US warehouses when asked, with stock and delivery days", async () => {
+    vi.stubEnv("CJ_API_KEY", "CJ123@api@key");
+    const urls: URL[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.endsWith("/authentication/getAccessToken")) return Response.json({ code: 200, result: true, data: { accessToken: "tok-1", accessTokenExpiryDate: "2027-05-12T07:11:03+08:00" } });
+      urls.push(new URL(input));
+      return Response.json({ code: 200, result: true, data: { content: [{ productList: [{ id: "P1", nameEn: "Lamp", sellPrice: "3.20-4.10", warehouseInventoryNum: 812, deliveryCycle: "5" }] }] } });
+    }));
+    expect(await searchCj("lamp", true)).toEqual([expect.objectContaining({ id: "P1", cost: 320, stock: 812, deliveryDays: 5, usStock: true })]);
+    expect(urls[0].searchParams.get("countryCode")).toBe("US");
+    await searchCj("lamp");
+    expect(urls[1].searchParams.has("countryCode")).toBe(false);
   });
 });

@@ -3,11 +3,14 @@ import { resetFakes, seedPhysicalOrder, seedPhysicalStore, state } from "./fakes
 
 const jar = vi.hoisted(() => new Map<string, string>());
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => jar.has(name) ? { value: jar.get(name) } : undefined, set: vi.fn(), delete: vi.fn() }) }));
-const cj = vi.hoisted(() => ({ prices: new Map<string, { vid: string; sku: string | null; cost: number }[] | null>() }));
+const cj = vi.hoisted(() => ({ prices: new Map<string, { vid: string; sku: string | null; cost: number; stock?: number | null }[] | null>(), fail: false }));
 vi.mock("../lib/cj", async (original) => ({
   ...(await original<typeof import("../lib/cj")>()),
   cjConfigured: () => true,
-  cjVariantPrices: async (pid: string) => cj.prices.has(pid) ? cj.prices.get(pid)! : null,
+  cjVariantPrices: async (pid: string) => {
+    if (cj.fail) throw new Error("Couldn't reach CJ");
+    return cj.prices.has(pid) ? cj.prices.get(pid)! : null;
+  },
 }));
 
 import { POST as marginsApi } from "../app/api/admin/margins/route";
@@ -20,7 +23,7 @@ const json = (url: string, body: unknown) => new Request(`${ORIGIN}${url}`, { me
 const BLACK = "0b5e3c3e-6f4a-4f63-9a3c-1f0d3a1e2b01";
 const WHITE = "0b5e3c3e-6f4a-4f63-9a3c-1f0d3a1e2b02";
 
-beforeEach(() => { resetFakes(); jar.clear(); jar.set("veilcode_owner", "owner-token"); cj.prices.clear(); vi.spyOn(console, "error").mockImplementation(() => {}); });
+beforeEach(() => { resetFakes(); jar.clear(); jar.set("veilcode_owner", "owner-token"); cj.prices.clear(); cj.fail = false; vi.spyOn(console, "error").mockImplementation(() => {}); });
 
 describe("margin maths", () => {
   it("counts supplier cost, supplier shipping and card fees", () => {
@@ -89,5 +92,43 @@ describe("the margins page", () => {
     cj.prices.set("PID2", [{ vid: "X", sku: null, cost: 800 }]);
     expect(await checkCjPrices()).toEqual({ checked: 2, alerts: 0 });
     expect(state.product_variants[1]).toMatchObject({ unit_cost: 800, cost_source: "cj", supplier_alert: null });
+  });
+
+  it("flags stock running low or out, and variants it can't match, without guessing a price", async () => {
+    seedPhysicalStore();
+    const [black, white] = state.product_variants;
+    black.supplier_url = white.supplier_url = "https://cjdropshipping.com/product/lamp-p-PID1.html";
+    black.supplier_sku = "cj-black-sku"; black.unit_cost = 1000;
+    white.supplier_sku = null; white.unit_cost = 900;
+    cj.prices.set("PID1", [{ vid: "V1", sku: "CJ-BLACK-SKU", cost: 1000, stock: 0 }, { vid: "V2", sku: "CJ-WHITE-SKU", cost: 700, stock: 500 }]);
+    expect(await checkCjPrices()).toEqual({ checked: 2, alerts: 2 });
+    expect(black.supplier_alert).toBe("CJ is out of stock of this variant.");
+    expect(white).toMatchObject({ supplier_price_seen: null, unit_cost: 900 });
+    expect(white.supplier_alert).toMatch(/Can't tell which CJ variant/);
+
+    cj.prices.set("PID1", [{ vid: "V1", sku: "CJ-BLACK-SKU", cost: 1100, stock: 12 }, { vid: "V2", sku: "CJ-WHITE-SKU", cost: 700, stock: 500 }]);
+    white.supplier_sku = "V2";
+    expect(await checkCjPrices()).toEqual({ checked: 2, alerts: 1 });
+    expect(black.supplier_alert).toBe("CJ now charges 11.00, up from 10.00. CJ has only 12 left.");
+    expect(white.supplier_alert).toBeNull();
+  });
+
+  it("checks the products seen longest ago first, and a failed call never reads as a dropped product", async () => {
+    seedPhysicalStore();
+    const [black, white] = state.product_variants;
+    black.supplier_url = "https://cjdropshipping.com/product/a-p-PID1.html";
+    white.supplier_url = "https://cjdropshipping.com/product/b-p-PID2.html";
+    black.supplier_checked_at = new Date(Date.now() - 3600_000).toISOString();
+    white.supplier_checked_at = new Date(Date.now() - 86400_000).toISOString();
+    cj.prices.set("PID1", [{ vid: "A", sku: null, cost: 500 }]);
+    cj.prices.set("PID2", [{ vid: "B", sku: null, cost: 600 }]);
+    expect(await checkCjPrices(1)).toEqual({ checked: 1, alerts: 0 });
+    expect(white.supplier_price_seen).toBe(600);
+    expect(black.supplier_price_seen ?? null).toBeNull();
+
+    cj.fail = true;
+    const before = { ...black };
+    expect(await checkCjPrices()).toEqual({ checked: 0, alerts: 0 });
+    expect(black).toEqual(before);
   });
 });

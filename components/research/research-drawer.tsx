@@ -8,7 +8,7 @@ import { ArrowRight, ArrowUpRight, Loader2, Plus, Search, Trash2, X } from "luci
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { slugify } from "@/lib/store-input";
 import {
-  daysSince, STAGE_LABELS, STAGES, unitEconomics,
+  cjNotes, daysSince, STAGE_LABELS, STAGES, unitEconomics,
   type CjDetail, type CjProduct, type ResearchAd, type ResearchCard, type ResearchKind, type ResearchProduct, type ResearchSupplier, type Stage,
 } from "@/lib/research.types";
 import { centsInput, dollars, metaLibraryUrl, researchApi, toCents } from "./api";
@@ -82,7 +82,7 @@ export function ResearchDrawer({ item, onClose, onSaved, onDeleted, cj }: {
     setSupplier(supplierForm(detail));
     if (!image && (detail.image ?? product.image)) setImage(detail.image ?? product.image ?? "");
     setCjHits(null);
-    setMessage({ text: "Supplier costs filled in. Save to keep them.", failed: false });
+    setMessage({ text: `Supplier costs filled in. ${cjNotes({ listed: null }, detail)} Save to keep them.`.replace(/\s+/g, " "), failed: false });
   });
   const createStore = () => run("store", async () => {
     // Save first, so the store and the idea agree on the name and nothing typed here is lost.

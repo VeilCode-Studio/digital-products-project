@@ -53,8 +53,23 @@ export type MetaSearch =
   | { status: "not_configured" | "not_approved" | "token_expired" | "error"; message: string };
 
 /** `listed`: how many stores have listed it on CJ, a rough sign of demand. */
-export type CjProduct = { id: string; name: string; image: string | null; cost: number | null; category: string | null; listed: number | null; url: string };
-export type CjDetail = ResearchSupplier & { image: string | null; variants: number };
+/** `stock`: units across CJ's warehouses; `deliveryDays`: CJ's delivery cycle; `usStock`: found with the US-warehouse filter. */
+export type CjProduct = {
+  id: string; name: string; image: string | null; cost: number | null; category: string | null; listed: number | null; url: string;
+  stock?: number | null; deliveryDays?: number | null; usStock?: boolean;
+};
+/** `shipsFrom`: where the shipping quote starts (CJ's US warehouse when it holds the variant). Stock is null when CJ didn't say. */
+export type CjDetail = ResearchSupplier & { image: string | null; variants: number; shipsFrom: "US" | "CN" | null; stock: number | null; usStock: number | null };
+
+/** The notes a CJ product is saved with: demand, stock, and where it ships from. */
+export function cjNotes(product: Pick<CjProduct, "listed">, detail: Pick<CjDetail, "stock" | "usStock" | "shipsFrom">) {
+  const count = (value: number) => value.toLocaleString("en-US");
+  return [
+    product.listed ? `Listed by ${count(product.listed)} stores on CJ.` : "",
+    detail.stock === 0 ? "CJ is out of stock." : detail.stock !== null ? `${count(detail.stock)} in stock at CJ${detail.usStock ? `, ${count(detail.usStock)} in its US warehouse` : ""}.` : "",
+    detail.shipsFrom === "US" ? "Shipping quoted from CJ's US warehouse." : detail.shipsFrom === "CN" ? "Shipping quoted from China." : "",
+  ].filter(Boolean).join(" ");
+}
 
 export function daysSince(date: string | null, now = Date.now()) {
   if (!date) return null;

@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       case "create-store": result = await createStoreFromResearch(body); break;
       case "create-digital": result = await createDigitalFromResearch(body); break;
       case "meta-search": result = await searchMetaAds(query(), metaFilters(body.filters)); break;
-      case "cj-search": result = { products: await searchCj(query()) }; break;
+      case "cj-search": result = { products: await searchCj(query(), body.usStock === true) }; break;
       case "cj-detail": result = { supplier: await cjDetail(typeof body.pid === "string" ? body.pid : "") }; break;
       default: throw new HttpError(400, "Unknown action.");
     }

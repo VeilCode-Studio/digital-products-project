@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, Clock3, Copy, Layers, Loader2, Plus, Search, Store, TrendingUp, Users } from "lucide-react";
+import { ArrowUpRight, Clock3, Copy, Layers, Loader2, Package, Plus, Search, Store, TrendingUp, Truck, Users } from "lucide-react";
 import {
-  longestRunning, META_MEDIA, META_MIN_DAYS, STAGE_HINTS, STAGE_LABELS, STAGES, unitEconomics,
-  type CjProduct, type MetaAd, type MetaFilters, type MetaSearch, type ResearchCard, type ResearchProduct,
+  cjNotes, longestRunning, META_MEDIA, META_MIN_DAYS, STAGE_HINTS, STAGE_LABELS, STAGES, unitEconomics,
+  type CjDetail, type CjProduct, type MetaAd, type MetaFilters, type MetaSearch, type ResearchCard, type ResearchProduct,
 } from "@/lib/research.types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -93,6 +93,7 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
   const [metaResult, setMetaResult] = useState<MetaSearch | null>(null);
   const [filters, setFilters] = useState<AdFilters>(DEFAULT_FILTERS);
   const [cjResult, setCjResult] = useState<CjProduct[] | null>(null);
+  const [usStock, setUsStock] = useState(false);
   const [manual, setManual] = useState<{ title: string; url: string; kind: "physical" | "digital" }>({ title: "", url: "", kind: "physical" });
 
   // The last filters used in this browser. localStorage is only readable after hydration.
@@ -137,7 +138,11 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
     if (terms.length < 2) return;
     setSearched(terms);
     if (tab === "meta") searchMeta(terms, filters);
-    if (tab === "cj") void run("search", async () => { setCjResult((await researchApi<{ products: CjProduct[] }>({ action: "cj-search", query: terms })).products); });
+    if (tab === "cj") searchCj(terms, usStock);
+  }
+
+  function searchCj(terms: string, onlyUs: boolean) {
+    void run("search", async () => { setCjResult((await researchApi<{ products: CjProduct[] }>({ action: "cj-search", query: terms, usStock: onlyUs })).products); });
   }
 
   /** Adds a Meta ad to the idea named like the search, or starts that idea. */
@@ -158,11 +163,11 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
 
   function saveCj(product: CjProduct) {
     void run(`cj:${product.id}`, async () => {
-      const { supplier } = await researchApi<{ supplier: ResearchProduct["supplier"] & { image: string | null } }>({ action: "cj-detail", pid: product.id });
-      const { image, ...details } = supplier!;
+      const { supplier } = await researchApi<{ supplier: CjDetail }>({ action: "cj-detail", pid: product.id });
+      const { image, ...details } = supplier;
       const { item } = await researchApi<{ item: ResearchProduct }>({
         action: "create", title: product.name.slice(0, 120), image_url: image ?? product.image, supplier: { ...details, url: details.url ?? product.url },
-        notes: product.listed ? `Listed by ${product.listed.toLocaleString("en-US")} stores on CJ.` : "",
+        notes: cjNotes(product, supplier),
       });
       upsert(item); setOpenId(item.id);
     });
@@ -213,6 +218,13 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
         <label className="research-filter-check">
           <Checkbox checked={filters.collapse} onCheckedChange={(collapse) => filter({ collapse })} className="research-checkbox" />
           Group copycat pages
+        </label>
+      </div>}
+
+      {tab === "cj" && cj && <div className="research-filters" role="group" aria-label="Filter CJ products">
+        <label className="research-filter-check">
+          <Checkbox checked={usStock} onCheckedChange={(checked) => { setUsStock(checked); if (searched) searchCj(searched, checked); }} className="research-checkbox" />
+          In CJ&apos;s US warehouse only (delivers in days, not weeks)
         </label>
       </div>}
 
@@ -267,6 +279,9 @@ export function ResearchWorkspace({ initialItems, meta, cj }: { initialItems: Re
               <div className="research-signals">
                 {product.cost !== null && <span className="signal">from {dollars(product.cost)}</span>}
                 {product.listed !== null && product.listed > 0 && <span className={product.listed >= 200 ? "signal strong" : "signal"}><Store size={13} /> {compact.format(product.listed)} stores</span>}
+                {product.usStock && <span className="signal strong"><Truck size={13} /> US warehouse</span>}
+                {product.stock === 0 ? <span className="signal">Out of stock</span>
+                  : typeof product.stock === "number" && <span className="signal"><Package size={13} /> {compact.format(product.stock)} in stock</span>}
               </div>
             </div>
             <footer>
