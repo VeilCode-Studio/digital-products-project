@@ -8,6 +8,8 @@ import { isOverdue, originalShipBy, promisedShipBy } from "@/lib/order-dates";
 import { formatMoney } from "@/lib/store-config";
 import { NavSection } from "@/components/admin-nav";
 import { CopyField, FulfillmentActions } from "@/components/fulfillment-actions";
+import { CjOrderPanel, CjSyncButton } from "@/components/cj-order-panel";
+import { cjConfigured, cjPidFromUrl } from "@/lib/cj";
 import type { FulfillmentStatus, Order } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +30,7 @@ function waitingDays(order: Order) {
   return Math.floor((Date.now() - Date.parse(order.created_at)) / 86_400_000);
 }
 
-function OrderCard({ order, mediaBase }: { order: Order; mediaBase: string }) {
+function OrderCard({ order, mediaBase, cj }: { order: Order; mediaBase: string; cj: boolean }) {
   const snapshot = order.physical_snapshot;
   const address = order.shipping_address;
   const status = order.fulfillment_status ?? "needs_ordering";
@@ -85,6 +87,7 @@ function OrderCard({ order, mediaBase }: { order: Order; mediaBase: string }) {
           <span>Cancelled{order.cancelled_by === "customer" ? " by the customer" : ""}{order.cancelled_at ? ` on ${day(order.cancelled_at)}` : ""}. {order.refunded_amount != null
             ? `Refunded ${formatMoney(order.refunded_amount, currency)}.`
             : "Not refunded: refund the payment in your Stripe dashboard if you haven't already."}</span></p>}
+        {cj && status === "needs_ordering" && snapshot?.items.some((item) => cjPidFromUrl(item.supplierUrl)) && <CjOrderPanel orderId={order.id} orderRef={order.stripe_session_id.slice(-8).toUpperCase()} />}
         <FulfillmentActions orderId={order.id} orderRef={order.stripe_session_id.slice(-8).toUpperCase()} customer={(order.customer_name ?? address?.name ?? "").trim()} status={status} supplierRef={order.supplier_order_ref ?? null}
           tracking={{ number: order.tracking_number ?? null, carrier: order.tracking_carrier ?? null, url: order.tracking_url ?? null, emailed: !!order.tracking_email_sent_at }}
           delay={{ shipBy, originalShipBy: originalShipBy(order), notices: notices.length }} total={total} />
@@ -99,13 +102,14 @@ export default async function FulfillmentPage({ searchParams }: { searchParams: 
   const status = FULFILLMENT_STATUSES.includes(requested as FulfillmentStatus) ? requested as FulfillmentStatus : "needs_ordering";
   const [counts, orders] = await Promise.all([fulfillmentCounts(), listPhysicalOrders(status)]);
   const mediaBase = storefrontMediaBase();
+  const cj = cjConfigured();
   return <><NavSection href="/admin/fulfillment" />
-    <div className="admin-page-heading"><div><span className="eyebrow">FROM SUPPLIER TO DOORSTEP</span><h1>Fulfilment</h1><p>Order each item from its supplier, add tracking, and we&apos;ll keep the customer updated.</p></div></div>
+    <div className="admin-page-heading"><div><span className="eyebrow">FROM SUPPLIER TO DOORSTEP</span><h1>Fulfilment</h1><p>Order each item from its supplier, add tracking, and we&apos;ll keep the customer updated.</p></div>{cj && (status === "ordered" || status === "shipped") && <CjSyncButton />}</div>
     <nav className="fulfil-tabs" aria-label="Order status">
       {FULFILLMENT_STATUSES.map((key) => <Link key={key} href={`/admin/fulfillment?status=${key}`} className={key === status ? "active" : ""} aria-current={key === status ? "page" : undefined}>{TABS[key].label}<span>{counts[key]}</span></Link>)}
     </nav>
     {orders.length
-      ? orders.map((order) => <OrderCard key={order.id} order={order} mediaBase={mediaBase} />)
+      ? orders.map((order) => <OrderCard key={order.id} order={order} mediaBase={mediaBase} cj={cj} />)
       : <section className="workspace-panel"><div className="empty-state"><PackageOpen size={28} /><h3>{TABS[status].label}</h3><p>{TABS[status].empty}</p></div></section>}
   </>;
 }

@@ -209,7 +209,7 @@ export function cjPidFromUrl(url: string | null) {
   } catch { return null; }
 }
 
-export type CjVariantPrice = { vid: string; sku: string | null; cost: number; stock?: number | null };
+export type CjVariantPrice = { vid: string; sku: string | null; cost: number; stock?: number | null; usStock?: number | null };
 
 /**
  * Every variant's current CJ price and stock, for the daily margin check (lib/margins.ts). Null when CJ
@@ -224,9 +224,78 @@ export async function cjVariantPrices(pid: string): Promise<CjVariantPrice[] | n
   if (!product) return null;
   const inventory = product.variants?.length ? await cjInventory(pid) : null;
   const variants = (product.variants ?? [])
-    .map((variant) => ({ vid: variant.vid ?? "", sku: variant.variantSku ?? null, cost: toCents(variant.variantSellPrice), stock: stockFor(variant, inventory).total }))
-    .filter((variant): variant is { vid: string; sku: string | null; cost: number; stock: number | null } => !!variant.vid && variant.cost !== null);
+    .map((variant) => {
+      const stock = stockFor(variant, inventory);
+      return { vid: variant.vid ?? "", sku: variant.variantSku ?? null, cost: toCents(variant.variantSellPrice), stock: stock.total, usStock: stock.us };
+    })
+    .filter((variant): variant is { vid: string; sku: string | null; cost: number; stock: number | null; usStock: number | null } => !!variant.vid && variant.cost !== null);
   if (variants.length) return variants;
   const cost = toCents(product.sellPrice);
-  return cost === null ? [] : [{ vid: pid, sku: null, cost, stock: null }];
+  return cost === null ? [] : [{ vid: pid, sku: null, cost, stock: null, usStock: null }];
+}
+
+// ---- Orders (lib/cj-orders.ts). Shapes checked against CJ's live API with a sandbox order. ----
+
+export type CjQuote = { name: string; cost: number; minDays: number | null; maxDays: number | null };
+
+/** Every way CJ can ship these variants from `from` to a US address, cheapest first. */
+export async function cjShippingQuotes(from: "US" | "CN", zip: string | null, products: { vid: string; quantity: number }[]): Promise<CjQuote[]> {
+  const quotes = await cj<Freight>("/logistic/freightCalculate", {
+    method: "POST", body: JSON.stringify({ startCountryCode: from, endCountryCode: "US", ...(zip ? { zip } : {}), products }),
+  });
+  return (Array.isArray(quotes) ? quotes : []).flatMap((quote) => {
+    const cost = toCents(quote.logisticPrice);
+    if (cost === null || !quote.logisticName) return [];
+    const [min, max] = (quote.logisticAging ?? "").split("-").map((part) => count(part.trim()));
+    return [{ name: quote.logisticName.slice(0, 80), cost, minDays: min ?? null, maxDays: max ?? min ?? null }];
+  }).sort((a, b) => a.cost - b.cost);
+}
+
+/** What's available to spend in the CJ wallet, in cents. */
+export async function cjBalance(): Promise<number> {
+  const data = await cj<{ amount?: number | string }>("/shopping/pay/getBalance");
+  return toCents(data.amount) ?? 0;
+}
+
+export type CjOrderInput = {
+  orderNumber: string; logisticName: string; from: "US" | "CN"; sandbox: boolean;
+  address: { name: string; line1: string; line2: string | null; city: string; state: string; zip: string; phone: string | null };
+  products: { vid: string; quantity: number; lineId: string }[];
+};
+
+/**
+ * Places an order with CJ. In production CJ pays it from the wallet balance (payType 2); elsewhere it's a
+ * sandbox order that's created but never paid or charged.
+ */
+export async function cjCreateOrder(input: CjOrderInput) {
+  const data = await cj<{ orderId?: string; productAmount?: number | string; postageAmount?: number | string; orderStatus?: string }>("/shopping/order/createOrderV2", {
+    method: "POST",
+    body: JSON.stringify({
+      orderNumber: input.orderNumber, shippingCountryCode: "US", shippingCountry: "United States",
+      shippingProvince: input.address.state, shippingCity: input.address.city, shippingZip: input.address.zip,
+      shippingAddress: input.address.line1, ...(input.address.line2 ? { shippingAddress2: input.address.line2 } : {}),
+      shippingCustomerName: input.address.name, ...(input.address.phone ? { shippingPhone: input.address.phone } : {}),
+      logisticName: input.logisticName, fromCountryCode: input.from,
+      payType: input.sandbox ? 3 : 2, ...(input.sandbox ? { isSandbox: 1 } : {}),
+      products: input.products.map((product) => ({ vid: product.vid, quantity: product.quantity, storeLineItemId: product.lineId })),
+    }),
+  });
+  if (!data.orderId) throw new HttpError(502, "CJ didn't confirm the order. Check your CJ orders before trying again.");
+  return { orderId: data.orderId.slice(0, 64), productAmount: toCents(data.productAmount), postageAmount: toCents(data.postageAmount), status: data.orderStatus || null };
+}
+
+export type CjOrderState = { status: string | null; trackNumber: string | null; trackingUrl: string | null; carrier: string | null; amount: number | null };
+
+/** A CJ order's status and tracking. Null when CJ doesn't know the order. */
+export async function cjOrderDetail(orderId: string): Promise<CjOrderState | null> {
+  if (!/^[A-Za-z0-9-]{4,64}$/.test(orderId)) return null;
+  const data = await cj<{ orderStatus?: string; trackNumber?: string | null; trackingUrl?: string | null; logisticName?: string | null; trackingProvider?: string | null; orderAmount?: number | string }>(
+    `/shopping/order/getOrderDetail?${new URLSearchParams({ orderId })}`,
+  ).catch((error) => { if (error instanceof HttpError && error.status === 502) return null; throw error; });
+  if (!data) return null;
+  return {
+    status: data.orderStatus?.toUpperCase() ?? null, trackNumber: data.trackNumber?.trim() || null,
+    trackingUrl: data.trackingUrl?.startsWith("https://") ? data.trackingUrl : null,
+    carrier: (data.trackingProvider || data.logisticName || "").slice(0, 60) || null, amount: toCents(data.orderAmount),
+  };
 }
