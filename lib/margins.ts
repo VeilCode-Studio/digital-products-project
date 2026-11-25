@@ -167,7 +167,7 @@ export function matchCjVariant(prices: CjVariantPrice[], supplierSku: string | n
  * The daily CJ check: re-price CJ variants, flag any that got dearer, ran low or out, or disappeared.
  * The products checked longest ago go first, so every product gets its turn even past the daily limit.
  */
-export async function checkCjPrices(limit = 25, budgetMs = 40_000) {
+export async function checkCjPrices(limit = 25, budgetMs = 40_000, onlyPids?: string[]) {
   if (!cjConfigured()) return { checked: 0, alerts: 0, skipped: "CJ_API_KEY not set" };
   const started = Date.now();
   const db = getSupabase();
@@ -180,7 +180,7 @@ export async function checkCjPrices(limit = 25, budgetMs = 40_000) {
     byPid.set(pid, [...(byPid.get(pid) ?? []), variant]);
   }
   const lastChecked = (variants: CostVariant[]) => Math.min(...variants.map((variant) => variant.supplier_checked_at ? Date.parse(variant.supplier_checked_at) || 0 : 0));
-  const queue = [...byPid].sort((a, b) => lastChecked(a[1]) - lastChecked(b[1])).slice(0, limit);
+  const queue = [...byPid].filter(([pid]) => !onlyPids || onlyPids.includes(pid)).sort((a, b) => lastChecked(a[1]) - lastChecked(b[1])).slice(0, limit);
   let checked = 0; let alerts = 0;
   const now = new Date().toISOString();
   for (const [pid, variants] of queue) {

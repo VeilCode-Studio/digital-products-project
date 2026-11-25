@@ -171,13 +171,16 @@ export async function placeCjOrder(orderId: string, logisticName: unknown) {
 }
 
 /** Follows CJ orders: tracking moves an order to shipped (and emails the buyer), delivery to delivered. */
-export async function syncCjOrders(limit = 30, budgetMs = 15_000) {
+export async function syncCjOrders(limit = 30, budgetMs = 15_000, only?: string[]) {
   if (!cjConfigured()) return { checked: 0, shipped: 0, delivered: 0, skipped: "CJ_API_KEY not set" };
   const started = Date.now();
   const { data, error } = await getSupabase().from("orders").select("*")
     .eq("store_id", STORE_ID).eq("kind", "physical").in("fulfillment_status", ["ordered", "shipped"]).limit(500);
   if (error) throw new Error("Could not load orders");
+  // `only`: CJ order codes or our order ids (CJ's orderNumber) named in a CJ notification.
+  const wanted = only ? new Set(only) : null;
   const orders = ((data ?? []) as Order[]).filter((order) => CJ_ORDER_REF.test(order.supplier_order_ref ?? ""))
+    .filter((order) => !wanted || wanted.has(order.id) || wanted.has(order.supplier_order_ref!))
     // Orders waiting for tracking first, then those in transit, oldest first.
     .sort((a, b) => (a.fulfillment_status === "ordered" ? 0 : 1) - (b.fulfillment_status === "ordered" ? 0 : 1) || a.created_at.localeCompare(b.created_at))
     .slice(0, limit);

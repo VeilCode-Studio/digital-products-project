@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, LayoutDashboard, Link2, Mail, MessageSquareQuote, Package, Percent, Plug, Radar, Receipt, Settings, Store, TicketPercent, Truck } from "lucide-react";
+import { BarChart3, ClipboardCheck, LayoutDashboard, Link2, Mail, MessageSquareQuote, Package, Percent, Plug, Radar, Receipt, Settings, Store, TicketPercent, Truck } from "lucide-react";
 
 // The sidebar, grouped in the order the work flows: find and build, sell and ship, grow, then setup.
 export const ADMIN_GROUPS = [
@@ -27,6 +27,7 @@ export const ADMIN_GROUPS = [
   { label: "Setup", links: [
     { href: "/admin/connections", label: "Connections", Icon: Plug },
     { href: "/admin/settings", label: "Store settings", Icon: Settings },
+    { href: "/admin/go-live", label: "Go-live checklist", Icon: ClipboardCheck },
   ] },
 ] as const;
 export const ADMIN_LINKS: readonly (typeof ADMIN_GROUPS)[number]["links"][number][] = ADMIN_GROUPS.flatMap((group): readonly (typeof ADMIN_GROUPS)[number]["links"][number][] => group.links);

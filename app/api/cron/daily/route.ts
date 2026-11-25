@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { sendReviewRequests } from "@/lib/reviews";
 import { checkCjPrices } from "@/lib/margins";
 import { syncCjOrders } from "@/lib/cj-orders";
+import { renewCjSubscriptions } from "@/lib/cj-webhooks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   const results: Record<string, unknown> = {};
   // CJ allows about a call a second, so its tasks share the minute: tracking first, then prices.
   const tasks: [string, () => Promise<unknown>][] = [
-    ["reviewRequests", () => sendReviewRequests()], ["cjOrders", () => syncCjOrders(30, 15_000)], ["cjPrices", () => checkCjPrices(25, 25_000)],
+    ["reviewRequests", () => sendReviewRequests()], ["cjOrders", () => syncCjOrders(30, 15_000)], ["cjPrices", () => checkCjPrices(25, 25_000)], ["cjSubscriptions", () => renewCjSubscriptions()],
   ];
   for (const [name, task] of tasks) {
     try { results[name] = await task(); }

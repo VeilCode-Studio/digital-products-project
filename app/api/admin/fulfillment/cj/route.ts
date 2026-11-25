@@ -1,6 +1,7 @@
 import { requireOwner } from "@/lib/auth";
 import { sameOrigin, apiError, HttpError, jsonObject } from "@/lib/http";
 import { placeCjOrder, planCjOrder, syncCjOrders } from "@/lib/cj-orders";
+import { connectCjUpdates } from "@/lib/cj-webhooks";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
         break;
       }
       case "sync": result = await syncCjOrders(30, 45_000); break;
+      case "connect-updates": result = await connectCjUpdates(); break;
       default: throw new HttpError(400, "Unknown action.");
     }
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });

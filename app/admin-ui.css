@@ -206,3 +206,25 @@
   .abandoned-email, .abandoned-row .catalog-actions { grid-column: 1 / -1; }
   .admin-shell .abandoned-list { padding: 4px 18px 10px; }
 }
+
+/* Go-live checklist (/admin/go-live) */
+.golive-group > header { padding: 20px 24px 6px; }
+.golive-group > header h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+.golive-group > header p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.golive-count { margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--surface); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.golive-list { margin: 0; padding: 8px 24px 16px; list-style: none; }
+.golive-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+.golive-item:first-child { border-top: 0; }
+.golive-item strong { display: block; font-size: 13px; font-weight: 600; }
+.golive-item p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.golive-item label { margin: 0; cursor: pointer; }
+.golive-item input[type="checkbox"] { width: 16px; height: 16px; margin: 1px 0 0 2px; accent-color: var(--accent); cursor: pointer; }
+.golive-item.is-ticked strong { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.golive-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 999px; }
+.golive-icon.done { color: #146c43; background: #e7f6ee; }
+.golive-icon.warn { color: #8a4b00; background: #fff4e0; }
+.golive-icon.todo { color: var(--accent); background: var(--blue-wash); }
+.golive-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; font-weight: 550; }
+.golive-action { display: grid; gap: 6px; justify-items: start; margin-top: 10px; }
+.golive-action p { margin: 0; font-size: 12px; }
+.golive-note { margin: -10px 0 0; font-size: 12px; }

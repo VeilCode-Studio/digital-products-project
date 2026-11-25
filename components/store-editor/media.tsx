@@ -2,7 +2,7 @@
 import { createContext, useContext, useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Check, Film, ImagePlus, Play, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, Film, ImagePlus, Loader2, Play, Trash2, Upload, X } from "lucide-react";
 import type { Media } from "@/lib/store-page";
 import { formatBytes, isGeneratedPoster, mediaKind, mediaUploadProblem, STORE_MEDIA_ACCEPT, type StoreMediaFile, type StoreMediaKind } from "@/lib/store-media";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,6 +15,10 @@ type MediaApi = {
   used: (path: string) => boolean;
   upload: (files: File[]) => Promise<StoreMediaFile[]>;
   remove: (file: StoreMediaFile) => Promise<void>;
+  /** The CJ product page a variant links to, if any: its photos can be imported. */
+  cjUrl: string | null;
+  importCj: () => Promise<StoreMediaFile[]>;
+  importing: boolean;
 };
 const MediaContext = createContext<MediaApi | null>(null);
 export function useMedia() {
@@ -73,11 +77,12 @@ async function capturePoster(file: File): Promise<Blob | null> {
   }
 }
 
-export function MediaProvider({ productId, mediaBase, initial, used, children }: {
-  productId: string; mediaBase: string; initial: StoreMediaFile[]; used: (path: string) => boolean; children: React.ReactNode;
+export function MediaProvider({ productId, mediaBase, initial, used, cjUrl = null, children }: {
+  productId: string; mediaBase: string; initial: StoreMediaFile[]; used: (path: string) => boolean; cjUrl?: string | null; children: React.ReactNode;
 }) {
   const [files, setFiles] = useState(initial);
   const [uploading, setUploading] = useState<Uploading[]>([]);
+  const [importing, setImporting] = useState(false);
   const queue = useRef(Promise.resolve());
   const track = (id: string, patch: Partial<Uploading>) => setUploading((list) => list.map((item) => item.id === id ? { ...item, ...patch } : item));
 
@@ -139,7 +144,21 @@ export function MediaProvider({ productId, mediaBase, initial, used, children }:
     toast.success("File deleted");
   }
 
-  return <MediaContext.Provider value={{ productId, mediaBase, files, uploading, used, upload, remove }}>{children}</MediaContext.Provider>;
+  async function importCj() {
+    if (!cjUrl || importing) return [];
+    setImporting(true);
+    try {
+      const { files: saved, skipped } = await call<{ files: StoreMediaFile[]; skipped: number }>({ action: "import-cj", productId, supplierUrl: cjUrl });
+      setFiles((list) => [...saved, ...list]);
+      toast.success(`${saved.length} photo${saved.length === 1 ? "" : "s"} imported from CJ`, skipped ? { description: `${skipped} couldn't be imported.` } : undefined);
+      return saved;
+    } catch (error) {
+      toast.error("CJ photos didn't import", { description: (error as Error).message });
+      return [];
+    } finally { setImporting(false); }
+  }
+
+  return <MediaContext.Provider value={{ productId, mediaBase, files, uploading, used, upload, remove, cjUrl, importCj, importing }}>{children}</MediaContext.Provider>;
 }
 
 /** A thumbnail for an image, GIF or video. */
@@ -179,7 +198,7 @@ function UploadButton({ label = "Upload", multiple = true, onUploaded, accept }:
 export function MediaLibrary({ accept, selected = [], onToggle, onUploaded }: {
   accept?: readonly StoreMediaKind[]; selected?: string[]; onToggle?: (file: StoreMediaFile) => void; onUploaded?: (files: StoreMediaFile[]) => void;
 }) {
-  const { files, uploading, used, upload, remove } = useMedia();
+  const { files, uploading, used, upload, remove, cjUrl, importCj, importing } = useMedia();
   const [dragging, setDragging] = useState(false);
   const [confirm, setConfirm] = useState<StoreMediaFile | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -196,7 +215,13 @@ export function MediaLibrary({ accept, selected = [], onToggle, onUploaded }: {
     }}>
     <div className="se-library-bar">
       <p>Drag {kinds} here, or <span className="se-nowrap">upload from your device.</span> <span className="se-hint">JPEG, PNG, WebP or AVIF up to 10 MB · GIF up to 5 MB · MP4 or WebM up to 25 MB</span></p>
-      <UploadButton accept={accept} onUploaded={onUploaded} />
+      <span className="se-library-actions">
+        {cjUrl && accept?.includes("image") !== false && <button type="button" className="button secondary small" disabled={importing} onClick={async () => {
+          const saved = await importCj();
+          if (saved.length) onUploaded?.(saved);
+        }}>{importing ? <Loader2 className="spin" size={15} aria-hidden /> : <Download size={15} aria-hidden />}{importing ? "Importing…" : "Import CJ photos"}</button>}
+        <UploadButton accept={accept} onUploaded={onUploaded} />
+      </span>
     </div>
     {shown.length || uploading.length ? <ul className="se-media-grid" role="list">
       {uploading.map((item) => <li key={item.id} className="se-media-tile is-uploading" aria-live="polite">

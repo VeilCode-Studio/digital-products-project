@@ -192,7 +192,9 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
   const tabHasProblem = (id: TabId) => problems.some((problem) => problem.tab === id);
   const ready = !readiness.length && !problems.length;
 
-  return <MediaProvider productId={productId} mediaBase={data.mediaBase} initial={data.media} used={used}>
+  // The first variant linked to a CJ product page: the media library can import that product's photos.
+  const cjUrl = draft.variants.find((variant) => /^https:\/\/([a-z0-9-]+\.)*cjdropshipping\.com\//i.test(variant.supplierUrl))?.supplierUrl ?? null;
+  return <MediaProvider productId={productId} mediaBase={data.mediaBase} initial={data.media} used={used} cjUrl={cjUrl}>
     <div className="se">
       <Link href="/admin/stores" className="back-link se-back"><ArrowLeft size={15} aria-hidden /> All stores</Link>
       <div className="se-head" ref={heading}>

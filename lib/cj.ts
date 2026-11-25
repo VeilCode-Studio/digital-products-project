@@ -299,3 +299,40 @@ export async function cjOrderDetail(orderId: string): Promise<CjOrderState | nul
     carrier: (data.trackingProvider || data.logisticName || "").slice(0, 60) || null, amount: toCents(data.orderAmount),
   };
 }
+
+// ---- Product photos and CJ's update notifications (lib/cj-webhooks.ts). ----
+
+const CJ_IMAGE_HOST = /(^|\.)cjdropshipping\.com$/;
+const cjImage = (value: unknown): value is string => {
+  if (typeof value !== "string" || !value.startsWith("https://")) return false;
+  try { return CJ_IMAGE_HOST.test(new URL(value).hostname); } catch { return false; }
+};
+
+/** A product's photos on CJ's CDN: the gallery first, then variant photos, without repeats. */
+export async function cjProductImages(pid: string, max = 12): Promise<string[]> {
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(pid)) throw new HttpError(400, "That CJ product id isn't valid.");
+  const product = await cj<{ bigImage?: string; productImageSet?: unknown; variants?: { variantImage?: string }[] }>(`/product/query?${new URLSearchParams({ pid })}`);
+  const gallery = Array.isArray(product.productImageSet) ? product.productImageSet : [];
+  return [...new Set([product.bigImage, ...gallery, ...(product.variants ?? []).map((variant) => variant.variantImage)].filter(cjImage))].slice(0, max);
+}
+
+/** Points CJ's order, tracking, stock and product notifications at `url`. CJ test-calls it before saving. */
+export async function cjSetWebhooks(url: string) {
+  const topic = { type: "ENABLE", callbackUrls: [url] };
+  await cj<unknown>("/webhook/set", { method: "POST", body: JSON.stringify({ product: topic, stock: topic, order: topic, logistics: topic }) });
+}
+
+/** Asks CJ for product, variant and stock notifications on these products. Subscriptions last 30 days. */
+export async function cjSubscribeProducts(pids: string[]) {
+  const valid = [...new Set(pids.filter((pid) => /^[A-Za-z0-9-]{1,64}$/.test(pid)))];
+  for (let start = 0; start < valid.length; start += 100) {
+    await cj<unknown>("/webhook/product/subscribe", { method: "POST", body: JSON.stringify({ productIds: valid.slice(start, start + 100) }) });
+  }
+  return valid.length;
+}
+
+/** How many products CJ is sending notifications for. 0 also when notifications aren't connected. */
+export async function cjSubscribedProducts(): Promise<number> {
+  const data = await cj<{ totalRecords?: number }>("/webhook/product/subscribe/list");
+  return count(data.totalRecords) ?? 0;
+}
