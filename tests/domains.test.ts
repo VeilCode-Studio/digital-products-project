@@ -89,6 +89,8 @@ describe("store domain resolution and checkout", () => {
     const redirected = await proxy(new NextRequest(`https://mybrand.com/p/${product.slug}?checkout=cancelled`));
     expect(redirected.headers.get("location")).toBe("https://mybrand.com/?checkout=cancelled");
     expect(domainPath("/policies/shipping", { kind: "physical", slug: "kit" })).toBe("/s/kit/policies/shipping");
+    expect(domainPath("/policies/returns", { kind: "physical", slug: "kit" })).toBe("/s/kit/policies/returns");
+    expect(domainPath("/policies/contact", { kind: "physical", slug: "kit" })).toBe("/s/kit/policies/contact");
   });
   it("does not query the new table when domain support is disabled", async () => {
     vi.stubEnv("CUSTOM_DOMAINS_ENABLED", "false");

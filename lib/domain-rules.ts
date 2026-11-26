@@ -30,7 +30,7 @@ export function domainPath(path: string, product: { kind?: string; slug: string 
   const base = storefrontPath(product);
   if (path === "/") return base;
   if (path === base || path.startsWith(`${base}/`)) return path;
-  if (product.kind === "physical" && (/^\/policies\/(privacy|terms|shipping|refunds)$/.test(path) || ["/thank-you", "/cancel"].includes(path))) return base + path;
+  if (product.kind === "physical" && (/^\/policies\/(privacy|terms|shipping|returns|contact)$/.test(path) || ["/thank-you", "/cancel"].includes(path))) return base + path;
   if (product.kind !== "physical" && ["/thank-you", "/privacy", "/terms", "/refunds", "/support", "/data-deletion"].includes(path)) return path;
   if (["/api/checkout", "/api/checkout/physical", "/api/subscribe"].includes(path)) return path;
   if (path.startsWith(`/api/products/`)) return path;

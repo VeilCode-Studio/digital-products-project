@@ -6,6 +6,7 @@ import { buildPolicy, POLICY_KINDS, POLICY_TITLES, type PolicyKind } from "@/lib
 import { adPlatforms } from "@/lib/store-themes";
 import { StoreFrame } from "@/components/storefront/store-frame";
 import { AdChoices } from "@/components/storefront/tiktok";
+import { checkoutDestination } from "@/lib/domains";
 import { previewPath, signInForPreview } from "@/lib/preview-access";
 import "../../storefront.css";
 
@@ -34,8 +35,10 @@ export async function generateMetadata(props: Params): Promise<Metadata> {
   const found = await load(props);
   if (!found) return { title: "Page not found" };
   const doc = documentFor(found.store, found.kind);
+  const destination = await checkoutDestination({ ...found.store.product, kind: "physical" });
   return {
     title: { absolute: `${doc.title} | ${found.store.brand.name}` }, description: doc.intro,
+    alternates: { canonical: new URL(`${destination.base}/policies/${found.kind}`, destination.origin).toString() },
     ...(found.store.product.draft ? { robots: { index: false, follow: false } } : {}),
   };
 }

@@ -43,3 +43,13 @@ Routing blocks management APIs and other product pages on custom domains. Shoppe
 - Full purchase acceptance requires a later release covering registrant contacts, provider commercial terms, payment/registration reconciliation, renewals, transfers, and customer support. Never treat a successful rehearsal as domain registration.
 
 References: [Vercel custom domains](https://vercel.com/docs/platforms/multi-tenant-platforms/configuring-domains), [Registrar API](https://vercel.com/docs/domains/registrar-api).
+
+## Staging verification — 26 November 2026
+
+- Preview migration applied and checked: RLS enabled, anonymous reads denied, authenticated writes denied, service role allowed. Production schema unchanged.
+- Deployed page returned 200 to an authenticated preview-owner session, showed the staging purchase panel, and loaded domain records successfully. Anonymous domain actions returned 401; an unrelated Origin returned 403.
+- Live availability search returned a registration and renewal quote. The deployed rehearsal rechecked that quote and returned `simulated: true`, `charged: false`, `registered: false`. No registration or email was sent. The temporary test session was signed out afterward.
+- Full test suite: 361 tests across 37 files. Lint and production build passed; the build retained an existing homepage filesystem-tracing warning.
+- Desktop and 390px mobile layouts inspected using isolated fixtures of the real components. Browser access to staging itself remains protected by Vercel login.
+- Real domain provisioning still requires `DOMAIN_VERCEL_TOKEN` in the staging branch's Preview scope and a user-owned test domain. No real DNS/HTTPS connection has been accepted end to end yet.
+- The preview security advisor also reported existing unrelated findings: a backup table without RLS and disabled leaked-password protection. The new server-only domain table follows the project's intentional no-browser-policy model. See [RLS guidance](https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public) and [password protection guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).

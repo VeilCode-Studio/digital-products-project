@@ -20,11 +20,13 @@ import ProductPage from "../app/p/[slug]/page";
 import EditProduct from "../app/admin/(workspace)/products/[id]/page";
 import { AdminShell } from "../components/admin-shell";
 import { PaymentSettings } from "../components/payment-settings";
+import { DomainsView } from "../components/domains-view";
 
 it("renders real store and owner pages with an isolated catalog for browser review", async () => {
   resetFakes();
   const product = seedProduct({ id: "lead-to-kickoff", slug: "lead-to-kickoff", name: "Lead to Kickoff: The Client Onboarding System", tagline: "Turn a new inquiry into a confident project kickoff.", description: "A practical guide and editable templates for the work between a new lead and a great kickoff.\n\nBuild a clear, repeatable process that makes every new client feel in good hands." });
   const views = {
+    "domains.html": <AdminShell active="/admin/domains"><div className="admin-page-heading"><div><span className="eyebrow">AN ADDRESS OF YOUR OWN</span><h1>Store domains</h1><p>Connect a memorable address to each product or physical store.</p></div></div><DomainsView domains={[]} products={[{ id: product.id, name: product.name, kind: "digital", status: "published" }]} ready={false} purchasePreview /></AdminShell>,
     "index.html": await Home(),
     "dashboard.html": await Dashboard(),
     "product.html": await ProductPage({ params: Promise.resolve({ slug: product.slug }), searchParams: Promise.resolve({}) }),
@@ -33,12 +35,13 @@ it("renders real store and owner pages with an isolated catalog for browser revi
     "payments-setup.html": <AdminShell active="/admin/settings"><div className="admin-page-heading"><h1>Store settings</h1></div><PaymentSettings enabled={false} configured={false} livemode={false} connection={null} /></AdminShell>,
   };
   const css = await readFile(join(process.cwd(), "app/globals.css"), "utf8");
+  const domainCss = (await Promise.all(["admin-theme.css", "admin/domains.css"].map((name) => readFile(join(process.cwd(), "app", name), "utf8")))).join("\n");
   const output = join(process.cwd(), ".preview");
   await mkdir(output, { recursive: true });
   for (const [filename, view] of Object.entries(views)) {
     const markup = renderToStaticMarkup(view);
     expect(markup).not.toContain("owner-token");
-    await writeFile(join(output, filename), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Local visual fixture</title><style>${css}</style></head><body>${markup}</body></html>`, "utf8");
+    await writeFile(join(output, filename), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Local visual fixture</title><style>${css}${filename === "domains.html" ? domainCss : ""}</style></head><body>${markup}</body></html>`, "utf8");
   }
 });
 
