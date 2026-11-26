@@ -4,12 +4,14 @@ import type { Order } from "../lib/orders";
 import type { CatalogProduct, Checkout, ProductVariant, ShippingProfile, ShippingRate, Store } from "../lib/catalog.types";
 import { STORE_ID } from "../lib/store-config";
 import type { PaymentConnection, PaymentOAuthAttempt, ProductPaymentRef } from "../lib/payment.types";
+import type { StoreDomain } from "../lib/domain-types";
 
 type DbError = { code: string; message: string } | null;
 type Result = { data: unknown; error: DbError };
 type Row = Record<string, unknown>;
 export const OWNER_ID = "975ac870-5ab8-43a5-9d70-c051c42fc61f";
 export const state = {
+  store_domains: [] as StoreDomain[],
   orders: [] as Order[], products: [] as CatalogProduct[], checkouts: [] as Checkout[], stores: [] as Store[],
   payment_connections: [] as PaymentConnection[], payment_oauth_attempts: [] as PaymentOAuthAttempt[], product_payment_refs: [] as ProductPaymentRef[],
   product_variants: [] as ProductVariant[], shipping_rates: [] as ShippingRate[], shipping_profiles: [] as ShippingProfile[],
@@ -45,6 +47,7 @@ export function seedProduct(overrides: Partial<CatalogProduct> = {}): CatalogPro
   return product;
 }
 function rows(table: string): Row[] {
+  if (table === "store_domains") return state.store_domains as unknown as Row[];
   if (!["orders", "products", "checkouts", "stores", "payment_connections", "payment_oauth_attempts", "product_payment_refs", "product_variants", "shipping_rates", "shipping_profiles", "research_products", "integration_tokens", "mcp_clients", "mcp_connections", "mcp_secrets", "mcp_activity", "mcp_uploads", "short_links", "short_link_clicks", "discount_codes", "subscribers", "reviews"].includes(table)) throw new Error(`Unexpected table: ${table}`);
   return state[table as "orders"] as unknown as Row[];
 }
@@ -235,6 +238,7 @@ export const oauthToken = vi.fn();
 export const oauthDeauthorize = vi.fn();
 export const oauthAuthorizeUrl = vi.fn();
 export function resetFakes() {
+  state.store_domains = [];
   state.orders = []; state.products = []; state.checkouts = [];
   state.payment_connections = []; state.payment_oauth_attempts = []; state.product_payment_refs = [];
   state.product_variants = []; state.shipping_rates = []; state.shipping_profiles = [];

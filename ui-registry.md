@@ -1,3 +1,9 @@
+# Store domain settings
+
+Files: `components/domains-view.tsx`, `app/admin/domains.css`. Added 2026-11-26.
+
+Use existing workspace panels, `--line` borders, `--muted` text, and the shared `.button` treatments. Forms use shadcn Input, Select, Button and Checkbox; purchase review uses Dialog and removal uses AlertDialog. Panels have 28px padding (20px on small screens), 24px gaps, 20px headings, and 14px descriptive text. DNS tables scroll within their panel. Domain purchase rehearsal is identified in the panel, review dialog, charged-today amount and completion state.
+
 # Delivery page styles
 
 ### Payment and download status pages

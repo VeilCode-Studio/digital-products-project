@@ -3,6 +3,7 @@ import { getSupabase } from "./supabase";
 import { getStripe } from "./stripe";
 import { getEnv } from "./env";
 import { HttpError } from "./http";
+import { checkoutDestination } from "./domains";
 import { STORE_ID } from "./store-config";
 import { getCatalogProduct } from "./catalog";
 import { bindCheckoutSession, findCheckout } from "./checkout";
@@ -133,7 +134,8 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
   const item = snapshot.items[0];
   const image = item.imagePath ? storefrontMediaBase() + item.imagePath : null;
   const suffix = statementSuffix(snapshot.brand.name);
-  const appUrl = getEnv().APP_URL;
+  const destination = await checkoutDestination({ ...product, slug: checkout.product_slug });
+  const appUrl = destination.origin;
   // Eight letters derived from the random UUID, stable across Stripe retries.
   const tag = checkout.id.replace(/-/g, "").slice(0, 8).replace(/[0-9a-f]/gi, (digit) => String.fromCharCode(97 + parseInt(digit, 16)));
 
@@ -175,8 +177,8 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     client_reference_id: checkout.id,
     metadata: { app: "veilcode-store", kind: "physical", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
     // The reference lets the thank-you page report this purchase to the store's ad pixel.
-    success_url: new URL(`/s/${checkout.product_slug}/thank-you?ref=${checkout.id}`, appUrl).toString(),
-    cancel_url: new URL(`/s/${checkout.product_slug}?checkout=cancelled`, appUrl).toString(),
+    success_url: new URL(`${destination.base}/thank-you?ref=${checkout.id}`, appUrl).toString(),
+    cancel_url: new URL(`${destination.base}?checkout=cancelled`, appUrl).toString(),
     integration_identifier: `veilcode-store-${tag}`,
   }, { ...options, idempotencyKey: `checkout-${checkout.id}` });
   if (!session.url) throw new Error("Stripe checkout URL missing");

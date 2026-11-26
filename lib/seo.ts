@@ -35,9 +35,9 @@ function ratingLd(ratings?: Ratings | null) {
 }
 const IN_STOCK = "https://schema.org/InStock";
 
-export function digitalProductLd(product: CatalogProduct, ratings?: Ratings | null) {
+export function digitalProductLd(product: CatalogProduct, ratings?: Ratings | null, canonical?: string) {
   if (product.price_amount === null) return null;
-  const url = absolute(`/p/${product.slug}`);
+  const url = canonical ?? absolute(`/p/${product.slug}`);
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -55,9 +55,9 @@ export function digitalProductLd(product: CatalogProduct, ratings?: Ratings | nu
   };
 }
 
-export function physicalProductLd(store: Storefront, images: string[], ratings?: Ratings | null) {
+export function physicalProductLd(store: Storefront, images: string[], ratings?: Ratings | null, canonical?: string) {
   if (!store.variants.length) return null;
-  const url = absolute(`/s/${store.product.slug}`);
+  const url = canonical ?? absolute(`/s/${store.product.slug}`);
   const currency = store.product.currency.toUpperCase();
   return {
     "@context": "https://schema.org",

@@ -29,6 +29,7 @@ export default async function EditProduct({ params, searchParams }: { params: Pr
     <div className="admin-page-heading">
       <div><span className="eyebrow">THE DETAILS MAKE THE DIFFERENCE</span><h1>Edit product</h1><p>Make it useful. Make it yours.</p></div>
       <div className="admin-heading-actions">
+        <Link className="button secondary" href={`/admin/domains?product=${encodeURIComponent(product.id)}`}>Domains</Link>
         {(await searchParams).saved && <span className="save-success" role="status"><Check size={16} /> Product saved</span>}
         <a className="button secondary" href={productPageHref(product)} target="_blank" rel="noopener noreferrer" title={published ? undefined : "Only you can see a draft's page"}>
           {published ? "View page" : "Preview page"} <ArrowUpRight size={16} aria-hidden="true" />

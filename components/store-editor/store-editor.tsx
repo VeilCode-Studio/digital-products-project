@@ -196,7 +196,7 @@ export function StoreEditor({ data }: { data: StoreEditorData }) {
   const cjUrl = draft.variants.find((variant) => /^https:\/\/([a-z0-9-]+\.)*cjdropshipping\.com\//i.test(variant.supplierUrl))?.supplierUrl ?? null;
   return <MediaProvider productId={productId} mediaBase={data.mediaBase} initial={data.media} used={used} cjUrl={cjUrl}>
     <div className="se">
-      <Link href="/admin/stores" className="back-link se-back"><ArrowLeft size={15} aria-hidden /> All stores</Link>
+      <div className="domains-actions"><Link href="/admin/stores" className="back-link se-back"><ArrowLeft size={15} aria-hidden /> All stores</Link><Link href={`/admin/domains?product=${encodeURIComponent(productId)}`} className="button secondary"><Globe size={15} aria-hidden /> Domains</Link></div>
       <div className="se-head" ref={heading}>
         <div className="se-head-title">
           <span className="se-head-icon"><Store size={20} aria-hidden /></span>

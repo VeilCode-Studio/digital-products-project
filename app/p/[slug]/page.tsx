@@ -19,6 +19,7 @@ import { currentGift } from "@/lib/subscribers";
 import { approvedReviews } from "@/lib/reviews";
 import { ProductReviews } from "@/components/site/product-reviews";
 import { digitalProductLd } from "@/lib/seo";
+import { publicProductUrl } from "@/lib/domains";
 import { monaSans } from "../../studio-fonts";
 import "../../studio.css";
 
@@ -36,11 +37,12 @@ async function load({ params, searchParams }: Params) {
 export async function generateMetadata(props: Params): Promise<Metadata> {
   const { product } = await load(props);
   if (!product) return { title: "Product not found" };
+  const canonical = await publicProductUrl(product);
   return {
     title: product.name, description: product.tagline || undefined,
-    alternates: { canonical: `/p/${product.slug}` },
+    alternates: { canonical },
     openGraph: {
-      title: product.name, description: product.tagline || undefined, url: `/p/${product.slug}`,
+      title: product.name, description: product.tagline || undefined, url: canonical,
       images: product.cover_path && product.status === "published" ? [{ url: coverSrc(product), alt: `${product.name} cover` }] : undefined,
     },
     ...(product.status !== "published" ? { robots: { index: false, follow: false } } : {}),
@@ -72,7 +74,7 @@ export default async function ProductPage(props: Params) {
     <div id={ROOT_ID} className={`vc vc-pd-page ${monaSans.variable}`}>
       <PageEffects rootId={ROOT_ID} />
 
-      {!draft && <JsonLd data={digitalProductLd(product, ratings)} />}
+      {!draft && <JsonLd data={digitalProductLd(product, ratings, await publicProductUrl(product))} />}
       <main className="vc-wrap vc-pd">
         {draft && (
           <div className="vc-pd-draft" role="status">

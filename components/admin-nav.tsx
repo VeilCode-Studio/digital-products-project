@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardCheck, LayoutDashboard, Link2, Mail, MessageSquareQuote, Package, Percent, Plug, Radar, Receipt, Settings, Store, TicketPercent, Truck } from "lucide-react";
+import { BarChart3, ClipboardCheck, Globe, LayoutDashboard, Link2, Mail, MessageSquareQuote, Package, Percent, Plug, Radar, Receipt, Settings, Store, TicketPercent, Truck } from "lucide-react";
 
 // The sidebar, grouped in the order the work flows: find and build, sell and ship, grow, then setup.
 export const ADMIN_GROUPS = [
@@ -25,6 +25,7 @@ export const ADMIN_GROUPS = [
     { href: "/admin/links", label: "Short links", Icon: Link2 },
   ] },
   { label: "Setup", links: [
+    { href: "/admin/domains", label: "Domains", Icon: Globe },
     { href: "/admin/connections", label: "Connections", Icon: Plug },
     { href: "/admin/settings", label: "Store settings", Icon: Settings },
     { href: "/admin/go-live", label: "Go-live checklist", Icon: ClipboardCheck },

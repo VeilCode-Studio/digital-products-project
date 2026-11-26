@@ -10,6 +10,7 @@ import { refreshCheckoutProductDetails } from "./stripe-product-details";
 import { assertDownloadAvailable } from "./product-files";
 import { paymentContext, stripeOptions } from "./payment-connections";
 import { syncConnectedProduct } from "./connected-stripe-products";
+import { checkoutDestination } from "./domains";
 
 export async function findCheckout(id: string, storeId = STORE_ID) {
   const { data, error } = await getSupabase().from("checkouts").select("*").eq("id", id).eq("store_id", storeId).maybeSingle();
@@ -63,6 +64,7 @@ export async function startCheckout(productId: string, checkoutId: string, linkS
   if (!context.accountId) await refreshCheckoutProductDetails(product);
   // Eight letters derived from the random UUID, stable across Stripe retries.
   const suffix = checkout.id.replace(/-/g, "").slice(0, 8).replace(/[0-9a-f]/gi, (digit) => String.fromCharCode(97 + parseInt(digit, 16)));
+  const destination = await checkoutDestination({ ...product, slug: checkout.product_slug });
   const session = await stripe.checkout.sessions.create({
     mode: "payment", ui_mode: "hosted_page", adaptive_pricing: { enabled: false },
     line_items: [{ price: checkout.stripe_price_id, quantity: 1 }],
@@ -75,8 +77,8 @@ export async function startCheckout(productId: string, checkoutId: string, linkS
     client_reference_id: checkout.id,
     metadata: { app: "veilcode-store", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
     // The checkout id lets the thank-you page suggest what pairs with this purchase (lib/thank-you-offers.ts).
-    success_url: new URL(`/thank-you?ref=${checkout.id}`, getEnv().APP_URL).toString(),
-    cancel_url: new URL(`/p/${checkout.product_slug}?checkout=cancelled`, getEnv().APP_URL).toString(),
+    success_url: new URL(`/thank-you?ref=${checkout.id}`, destination.origin).toString(),
+    cancel_url: new URL(`${destination.base}?checkout=cancelled`, destination.origin).toString(),
     integration_identifier: `veilcode-store-${suffix}`,
   }, { ...options, idempotencyKey: `checkout-${checkout.id}` });
   if (!session.url) throw new Error("Stripe checkout URL missing");

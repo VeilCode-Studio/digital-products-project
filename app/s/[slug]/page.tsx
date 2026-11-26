@@ -9,6 +9,7 @@ import { AdEvent } from "@/components/storefront/tiktok";
 import { previewPath, signInForPreview } from "@/lib/preview-access";
 import { JsonLd } from "@/components/site/json-ld";
 import { physicalProductLd } from "@/lib/seo";
+import { publicProductUrl } from "@/lib/domains";
 import { approvedReviews, type PublicReview } from "@/lib/reviews";
 import type { Section } from "@/lib/store-page";
 import "./storefront.css";
@@ -32,13 +33,14 @@ function heroOf(store: Storefront) {
 export async function generateMetadata(props: Params): Promise<Metadata> {
   const { store } = await load(props);
   if (!store) return { title: "Store not found" };
+  const canonical = await publicProductUrl({ ...store.product, kind: "physical" });
   const image = heroOf(store)?.data.media.find((item) => item.kind === "image");
   const title = store.brand.name === store.product.name ? store.product.name : `${store.product.name} | ${store.brand.name}`;
   return {
     title: { absolute: title },
     description: store.product.tagline || heroOf(store)?.data.subheadline || undefined,
-    alternates: { canonical: `/s/${store.product.slug}` },
-    openGraph: { title, description: store.product.tagline || undefined, url: `/s/${store.product.slug}`, images: image ? [{ url: store.mediaBase + image.path, alt: image.alt }] : undefined },
+    alternates: { canonical },
+    openGraph: { title, description: store.product.tagline || undefined, url: canonical, images: image ? [{ url: store.mediaBase + image.path, alt: image.alt }] : undefined },
     ...(store.product.draft ? { robots: { index: false, follow: false } } : {}),
   };
 }
@@ -112,7 +114,7 @@ export default async function StorePage(props: Params) {
       {(store.brand.tiktokPixelId || store.brand.metaPixelId) && <AdEvent event="ViewContent" params={{
         content_type: "product", content_id: store.product.id, content_name: store.product.name, currency: store.product.currency.toUpperCase(), value: lowest / 100,
       }} />}
-      {!store.product.draft && <JsonLd data={physicalProductLd(store, hero.data.media.filter((item) => item.kind === "image").map((item) => store.mediaBase + item.path).slice(0, 6), ratings)} />}
+      {!store.product.draft && <JsonLd data={physicalProductLd(store, hero.data.media.filter((item) => item.kind === "image").map((item) => store.mediaBase + item.path).slice(0, 6), ratings, await publicProductUrl({ ...store.product, kind: "physical" }))} />}
       <main id="top">
         {query.checkout === "cancelled" && <p className="st-shell st-notice" role="status">Checkout was cancelled and you haven&apos;t been charged.</p>}
         {sections.map((section) => section.type === "hero"

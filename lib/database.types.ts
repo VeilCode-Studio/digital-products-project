@@ -2,6 +2,7 @@ import type { CatalogProduct, Checkout, Store, DeliveryProduct, PhysicalSnapshot
 import type { PaymentConnection, PaymentOAuthAttempt, ProductPaymentRef } from "./payment.types";
 import type { RateInput, VariantInput } from "./store-input";
 import type { ResearchProduct } from "./research.types";
+import type { StoreDomain } from "./domain-types";
 // Mirrors the migrations. Keep these types with the schema.
 export type McpScope = "read" | "research" | "build";
 export type McpClient = { client_id: string; name: string; redirect_uris: string[]; secret_hash: string | null; jwks_uri: string | null; created_at: string };
@@ -82,6 +83,7 @@ export type FulfillmentStatus = "needs_ordering" | "ordered" | "shipped" | "deli
 export type Database = {
   public: {
     Tables: {
+      store_domains: { Row: StoreDomain; Insert: Pick<StoreDomain, "id" | "store_id" | "product_id" | "hostname"> & Partial<StoreDomain>; Update: Partial<StoreDomain>; Relationships: [] };
       payment_connections: { Row: PaymentConnection; Insert: Partial<PaymentConnection> & Pick<PaymentConnection, "store_id" | "provider" | "external_account_id" | "livemode" | "status">; Update: Partial<PaymentConnection>; Relationships: [] };
       payment_oauth_attempts: { Row: PaymentOAuthAttempt; Insert: PaymentOAuthAttempt; Update: Partial<PaymentOAuthAttempt>; Relationships: [] };
       product_payment_refs: { Row: ProductPaymentRef; Insert: ProductPaymentRef; Update: Partial<ProductPaymentRef>; Relationships: [] };
