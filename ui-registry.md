@@ -4,6 +4,8 @@ Files: `components/domains-view.tsx`, `app/admin/domains.css`. Added 2026-11-26.
 
 Use existing workspace panels, `--line` borders, `--muted` text, and the shared `.button` treatments. Forms use shadcn Input, Select, Button and Checkbox; purchase review uses Dialog and removal uses AlertDialog. Panels have 28px padding (20px on small screens), 24px gaps, 20px headings, and 14px descriptive text. DNS tables scroll within their panel. Domain purchase rehearsal is identified in the panel, review dialog, charged-today amount and completion state.
 
+Purchase review (`components/domain-purchase-dialog.tsx`) uses a centered shadcn Dialog capped at 480px, 24px padding (22px on small screens), and a 22px radius. A pale summary surface groups the domain, tabular registration/renewal prices, and the preview total. Keep the domain prominent, copy at 12–13px, and actions at least 44px high. The dialog scrolls on short viewports; its backdrop sits above the environment banner. Quote errors appear inside the dialog. The optional `overlayClassName` on DialogContent keeps this backdrop treatment scoped to domain review.
+
 # Delivery page styles
 
 ### Payment and download status pages

@@ -35,15 +35,17 @@ function DialogContent({
   children,
   showCloseButton = true,
   container,
+  overlayClassName,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   /** Where to render; a themed storefront passes its own root so its colour and font variables apply. */
   container?: DialogPrimitive.Portal.Props["container"]
+  overlayClassName?: string
 }) {
   return (
     <DialogPrimitive.Portal data-slot="dialog-portal" container={container}>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(

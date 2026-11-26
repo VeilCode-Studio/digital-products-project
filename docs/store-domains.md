@@ -50,6 +50,10 @@ References: [Vercel custom domains](https://vercel.com/docs/platforms/multi-tena
 
 Reproduced a false negative for `leadtokickoff.store` through the deployed staging search while direct Registrar checks confirmed it available. The combined endpoint does not distinguish unavailability from unsuccessful checks. Added exact-domain availability/pricing fallback and separate available, unavailable, and unknown UI states, including available-without-pricing. Also observed a 500 from an exact availability lookup; that now produces an unknown result instead of claiming the name is unavailable. Regression coverage includes the reported `.store`/`.com` names, provider failures/rate limits, malformed/missing search results, and incomplete pricing. The full suite now has 371 passing tests across 38 files.
 
+## Purchase dialog review
+
+Replaced the full-width purchase popup with a centered 480px maximum-width dialog, grouped domain/price summary, prominent preview total, concise copy and balanced actions. The shadcn Dialog/Checkbox/Button controls remain in use. Price-check errors now stay inside the open dialog. Browser-checked the real interactive component on desktop and in a 390px iframe, including renewal selection, inline error rendering and Escape dismissal. Temporary review routes were removed before deployment. Domain buying remains simulated and production remains unchanged.
+
 ## Staging verification — 26 November 2026
 
 - Preview migration applied and checked: RLS enabled, anonymous reads denied, authenticated writes denied, service role allowed. Production schema unchanged.

@@ -5,9 +5,8 @@ import { Check, ExternalLink, Globe, RefreshCw, Search, Trash2 } from "lucide-re
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DomainPurchaseDialog } from "@/components/domain-purchase-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { DomainQuote, StoreDomain } from "@/lib/domain-types";
 
@@ -89,7 +88,7 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
           <label htmlFor="domain-search">Domain to search</label>
           <div className="domains-search-input"><Input id="domain-search" placeholder="mynewbrand.com" autoCapitalize="none" autoCorrect="off" value={search} onChange={(event) => { setSearch(event.target.value); setQuote(null); setRehearsed(false); }} required maxLength={253} /><Button type="submit" className="button secondary" disabled={!!pending || !search.trim()}><Search size={16} aria-hidden />{pending === "search" ? "Searching…" : "Search"}</Button></div>
         </form>
-        {quote && <DomainSearchResult quote={quote} pending={!!pending} onPreview={() => { setRenew(false); setReview(true); }} />}
+        {quote && <DomainSearchResult quote={quote} pending={!!pending} onPreview={() => { setError(""); setRenew(false); setReview(true); }} />}
         {rehearsed && <p className="domains-success" role="status">Purchase preview completed. No payment was taken and no domain was registered or connected.</p>}
       </section>}
     </div>
@@ -108,18 +107,8 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         </div>
       </article>)}
     </section>
-    <Dialog open={review} onOpenChange={(open) => { if (!pending) setReview(open); }}>
-      <DialogContent className="domain-purchase-dialog">
-        <DialogHeader><DialogTitle>Review domain purchase</DialogTitle><DialogDescription>Staging rehearsal. Your domain is not reserved and you will not be charged.</DialogDescription></DialogHeader>
-        {quoted && <form onSubmit={(event) => { event.preventDefault(); void run("rehearse", { action: "rehearse", hostname: quote!.domain, expectedPrice: quote!.price }, (data) => { if (data.simulated && data.charged === false && data.registered === false) { setRehearsed(true); setReview(false); } }); }}>
-          <dl className="domains-order"><div><dt>Domain</dt><dd>{quote!.domain}</dd></div><div><dt>Registration</dt><dd>{usd(quote!.price!)} / {quote!.years} {quote!.years === 1 ? "year" : "years"}</dd></div><div><dt>Renewal estimate</dt><dd>{usd(quote!.renewalPrice!)}</dd></div><div><dt>Charged today</dt><dd>$0.00 · Preview</dd></div></dl>
-          <p>Live registration will require the registrant&apos;s contact details and a confirmed payment method. Neither is collected in this rehearsal.</p>
-          <label className="domains-renew"><Checkbox checked={renew} onCheckedChange={(checked) => setRenew(checked === true)} />Automatically renew this domain (preview preference)</label>
-          <p className="domains-footnote">Your renewal preference is demonstrated here only; no renewal setting is saved.</p>
-          <DialogFooter><Button type="button" className="button secondary" disabled={!!pending} onClick={() => setReview(false)}>Back</Button><Button type="submit" className="button" disabled={!!pending}>{pending === "rehearse" ? "Checking price…" : "Complete purchase preview"}</Button></DialogFooter>
-        </form>}
-      </DialogContent>
-    </Dialog>
+    {quoted && quote && <DomainPurchaseDialog quote={quote} open={review} onOpenChange={setReview} pending={!!pending} renew={renew} onRenewChange={setRenew} error={error}
+      onConfirm={() => void run("rehearse", { action: "rehearse", hostname: quote.domain, expectedPrice: quote.price }, (data) => { if (data.simulated && data.charged === false && data.registered === false) { setRehearsed(true); setReview(false); } })} />}
     <AlertDialog open={!!remove} onOpenChange={(open) => { if (!open && !pending) setRemove(null); }}>
       <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove {remove?.hostname}?</AlertDialogTitle><AlertDialogDescription>The store will use its platform link again. Domain registration and DNS records remain with your provider.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="button secondary" disabled={!!pending}>Keep domain</AlertDialogCancel><AlertDialogAction className="button danger" disabled={!!pending} onClick={() => { if (remove) void run("remove", { action: "remove", id: remove.id }, () => { setRemove(null); toast.success("Domain removed"); }); }}>Remove connection</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
     </AlertDialog>
