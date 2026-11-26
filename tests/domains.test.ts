@@ -51,6 +51,48 @@ describe("domain validation and staging gate", () => {
       expect(options?.headers).not.toHaveProperty("Authorization");
     }
   });
+  it("recovers a false negative from combined search using exact-domain availability and prices", async () => {
+    stubDevelopment({ DOMAIN_PURCHASE_PREVIEW: "true" });
+    respond({ results: [{ domain: "leadtokickoff.store", available: false }] });
+    respond({ available: true });
+    respond({ years: 1, purchasePrice: 1.49, renewalPrice: 44, transferPrice: 44 });
+    expect(await searchDomain("leadtokickoff.store")).toEqual([{ domain: "leadtokickoff.store", available: true, years: 1, price: 1.49, renewalPrice: 44 }]);
+    expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
+      "https://api.vercel.com/v1/registrar/domains/search",
+      "https://api.vercel.com/v1/registrar/domains/leadtokickoff.store/availability",
+      "https://api.vercel.com/v1/registrar/domains/leadtokickoff.store/price",
+    ]);
+  });
+  it("reports unavailable only after the explicit availability endpoint confirms it", async () => {
+    stubDevelopment({ DOMAIN_PURCHASE_PREVIEW: "true" });
+    respond({ results: [{ domain: "leadtokickoff.com", available: false }] });
+    respond({ available: false });
+    expect(await searchDomain("leadtokickoff.com")).toEqual([{ domain: "leadtokickoff.com", available: false }]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it.each([500, 429])("does not call an availability failure (%s) an unavailable domain", async (status) => {
+    stubDevelopment({ DOMAIN_PURCHASE_PREVIEW: "true" });
+    respond({ results: [{ domain: "leadtokickoff.com", available: false }] });
+    respond({ error: "provider unavailable" }, status);
+    expect(await searchDomain("leadtokickoff.com")).toEqual([{ domain: "leadtokickoff.com", available: null }]);
+  });
+  it("preserves confirmed availability when pricing fails or is nonnumeric", async () => {
+    stubDevelopment({ DOMAIN_PURCHASE_PREVIEW: "true" });
+    respond({ results: [{ domain: "leadtokickoff.com", available: false }] });
+    respond({ available: true }); respond({ years: 1, purchasePrice: "Price unavailable", renewalPrice: 12.03 });
+    expect(await searchDomain("leadtokickoff.com")).toEqual([{ domain: "leadtokickoff.com", available: true }]);
+    respond({ results: [{ domain: "leadtokickoff.com", available: true, years: 1 }] });
+    respond({}, 500);
+    await expect(rehearsePurchase("leadtokickoff.com", 6.99)).rejects.toMatchObject({ status: 409 });
+  });
+  it("falls back after a search failure, missing result or malformed result", async () => {
+    stubDevelopment({ DOMAIN_PURCHASE_PREVIEW: "true" });
+    for (const result of [null, {}, { results: [] }, { results: [null, "unexpected"] }]) {
+      respond(result ?? {}, result === null ? 503 : 200);
+      respond({ available: true }); respond({ years: 1, purchasePrice: 6.99, renewalPrice: 12.03 });
+      expect(await searchDomain("leadtokickoff.com")).toMatchObject([{ available: true, price: 6.99 }]);
+    }
+  });
 });
 
 describe("store domain resolution and checkout", () => {

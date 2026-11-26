@@ -5,6 +5,7 @@ export type StoreDomain = {
   checked_at: string | null; created_at: string;
 };
 export type DomainQuote = {
-  domain: string; available: boolean; years?: number; price?: number;
+  /** null means the provider could not verify availability, not that the name is taken. */
+  domain: string; available: boolean | null; years?: number; price?: number;
   renewalPrice?: number; premium?: boolean;
 };

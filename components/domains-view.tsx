@@ -20,6 +20,25 @@ async function call(body: object) {
   return data;
 }
 
+const canPreview = (quote: DomainQuote | null) => quote?.available === true &&
+  typeof quote.price === "number" && Number.isFinite(quote.price) && quote.price > 0 &&
+  typeof quote.renewalPrice === "number" && Number.isFinite(quote.renewalPrice) && quote.renewalPrice > 0 &&
+  typeof quote.years === "number" && Number.isInteger(quote.years) && quote.years >= 1 && quote.years <= 10;
+
+export function DomainSearchResult({ quote, pending, onPreview }: { quote: DomainQuote; pending: boolean; onPreview: () => void }) {
+  return <div className="domains-quote" aria-live="polite">
+    <strong>{quote.domain}</strong>
+    {quote.available === true ? <>
+      <span className="domains-available"><Check size={15} aria-hidden />Available{quote.premium ? " · Premium domain" : ""}</span>
+      {canPreview(quote) ? <>
+        <div className="domains-price">{usd(quote.price!)} <span>for {quote.years} {quote.years === 1 ? "year" : "years"}</span></div>
+        <p>Renewal: {usd(quote.renewalPrice!)} for the quoted term. Prices and availability can change.</p>
+        <Button type="button" className="button" disabled={pending} onClick={onPreview}>Preview purchase</Button>
+      </> : <p>This domain is available, but pricing could not be loaded. Search again to get a current quote.</p>}
+    </> : <p>{quote.available === false ? "This domain is currently unavailable through our domain provider." : "We couldn't verify availability right now. Please search again; this doesn't mean the domain is taken."}</p>}
+  </div>;
+}
+
 export function DomainsView({ domains, products, ready, purchasePreview, selectedProduct }: {
   domains: StoreDomain[]; products: Product[]; ready: boolean; purchasePreview: boolean; selectedProduct?: string;
 }) {
@@ -41,7 +60,7 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
     catch (failure) { setError(failure instanceof Error ? failure.message : "Please try again."); }
     finally { setPending(null); router.refresh(); }
   }
-  const quoted = quote?.available && typeof quote.price === "number" && Number.isFinite(quote.price) && typeof quote.renewalPrice === "number" && Number.isFinite(quote.renewalPrice) && typeof quote.years === "number";
+  const quoted = canPreview(quote);
   return <div className="domains-workspace">
     {error && <p className="domains-error" role="alert">{error}</p>}
     <div className="domains-grid">
@@ -70,15 +89,7 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
           <label htmlFor="domain-search">Domain to search</label>
           <div className="domains-search-input"><Input id="domain-search" placeholder="mynewbrand.com" autoCapitalize="none" autoCorrect="off" value={search} onChange={(event) => { setSearch(event.target.value); setQuote(null); setRehearsed(false); }} required maxLength={253} /><Button type="submit" className="button secondary" disabled={!!pending || !search.trim()}><Search size={16} aria-hidden />{pending === "search" ? "Searching…" : "Search"}</Button></div>
         </form>
-        {quote && <div className="domains-quote" aria-live="polite">
-          <strong>{quote.domain}</strong>
-          {quoted ? <>
-            <span className="domains-available"><Check size={15} aria-hidden />Available{quote.premium ? " · Premium domain" : ""}</span>
-            <div className="domains-price">{usd(quote.price!)} <span>for {quote.years} {quote.years === 1 ? "year" : "years"}</span></div>
-            <p>Renewal: {usd(quote.renewalPrice!)} for the quoted term. Prices and availability can change.</p>
-            <Button type="button" className="button" disabled={!!pending} onClick={() => { setRenew(false); setReview(true); }}>Preview purchase</Button>
-          </> : <p>Unavailable, or availability and pricing could not be confirmed. Try another name.</p>}
-        </div>}
+        {quote && <DomainSearchResult quote={quote} pending={!!pending} onPreview={() => { setRenew(false); setReview(true); }} />}
         {rehearsed && <p className="domains-success" role="status">Purchase preview completed. No payment was taken and no domain was registered or connected.</p>}
       </section>}
     </div>

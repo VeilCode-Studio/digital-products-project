@@ -21,6 +21,8 @@ Leave production unchanged. Search uses Vercel's public Registrar search API and
 
 Buying is a rehearsal: it retrieves current availability and registration/renewal quotes, displays a review dialog, and checks the registration price again before reporting an explicitly simulated result. No registrar purchase, renewal, payment, or DNS-write API is implemented. No contact or payment details are collected. The purchase UI and API are unavailable in production, even when the preview flag is set. Production enablement requires a future reviewed implementation, not an environment-variable change.
 
+Search first uses the combined Registrar search endpoint. Its negative result can also mean a lookup or pricing failure, so the server falls back to the exact-domain availability endpoint before reporting unavailability. Confirmed available names get domain-specific pricing when needed. Failed availability checks return an unknown state; failed pricing never changes an available domain into an unavailable one. Only complete numeric registration/renewal quotes can enter the purchase rehearsal.
+
 ## Existing domains
 
 1. Choose the product and enter a hostname without a URL scheme or path.
@@ -43,6 +45,10 @@ Routing blocks management APIs and other product pages on custom domains. Shoppe
 - Full purchase acceptance requires a later release covering registrant contacts, provider commercial terms, payment/registration reconciliation, renewals, transfers, and customer support. Never treat a successful rehearsal as domain registration.
 
 References: [Vercel custom domains](https://vercel.com/docs/platforms/multi-tenant-platforms/configuring-domains), [Registrar API](https://vercel.com/docs/domains/registrar-api).
+
+## Search correction
+
+Reproduced a false negative for `leadtokickoff.store` through the deployed staging search while direct Registrar checks confirmed it available. The combined endpoint does not distinguish unavailability from unsuccessful checks. Added exact-domain availability/pricing fallback and separate available, unavailable, and unknown UI states, including available-without-pricing. Also observed a 500 from an exact availability lookup; that now produces an unknown result instead of claiming the name is unavailable. Regression coverage includes the reported `.store`/`.com` names, provider failures/rate limits, malformed/missing search results, and incomplete pricing. The full suite now has 371 passing tests across 38 files.
 
 ## Staging verification — 26 November 2026
 

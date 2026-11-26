@@ -105,26 +105,57 @@ export async function removeDomain(id: unknown) {
   if (error) throw new HttpError(503, "Could not remove the domain record. Check status and try again.");
 }
 
+/** A provider failure or malformed response is unknown, never evidence of an unavailable domain. */
+async function registrar(path: string, body?: object): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await fetch(`https://api.vercel.com/v1/registrar/domains/${path}`, {
+      method: body ? "POST" : "GET", ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+      cache: "no-store", signal: AbortSignal.timeout(12_000),
+    });
+    if (!response.ok) return null;
+    const value: unknown = await response.json();
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  } catch { return null; }
+}
+
+function numericPrice(value: unknown): value is number {
+  // Some API price strings describe errors or unsupported names; never coerce them to quotes.
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+function validTerm(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10;
+}
+
 /** Read-only Registrar API; no purchase endpoint or billing credential is used by this flow. */
 export async function searchDomain(input: unknown): Promise<DomainQuote[]> {
   getDeployment();
   if (!domainPurchasePreview()) throw new HttpError(404, "Domain purchasing is only available for staging review.");
   const domain = assertDomainName(input);
-  const response = await fetch("https://api.vercel.com/v1/registrar/domains/search", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domains: [domain] }),
-    cache: "no-store", signal: AbortSignal.timeout(12_000),
-  }).catch(() => { throw new HttpError(503, "Domain search is temporarily unavailable. Please try again."); });
-  if (!response.ok) throw new HttpError(503, "Could not check availability. Please try again.");
-  const data = await response.json() as { results: DomainQuote[] };
-  return data.results.filter((quote) => quote.domain === domain).map((quote) => ({
-    domain, available: quote.available === true,
-    ...(quote.available ? { years: quote.years, price: quote.price, renewalPrice: quote.renewalPrice, premium: quote.premium } : {}),
-  }));
+  const data = await registrar("search", { domains: [domain] });
+  const result = Array.isArray(data?.results) ? data.results.find((item): item is Record<string, unknown> =>
+    item !== null && typeof item === "object" && item.domain === domain) : undefined;
+  const knownAvailable = result?.available === true;
+  const premium = typeof result?.premium === "boolean" ? { premium: result.premium } : {};
+  if (knownAvailable && validTerm(result.years) && numericPrice(result.price) && numericPrice(result.renewalPrice)) {
+    return [{ domain, available: true, years: result.years, price: result.price, renewalPrice: result.renewalPrice, ...premium }];
+  }
+  // Combined search returns false for both unavailable domains AND failed availability/price checks.
+  // Ask the explicit endpoint before declaring a name unavailable (reproduced on staging for .store).
+  const exact = encodeURIComponent(domain);
+  if (!knownAvailable) {
+    const availability = await registrar(`${exact}/availability`);
+    if (availability?.available !== true) return [{ domain, available: availability?.available === false ? false : null }];
+  }
+  const price = await registrar(`${exact}/price`);
+  if (!price || !validTerm(price.years) || !numericPrice(price.purchasePrice) || !numericPrice(price.renewalPrice)) {
+    return [{ domain, available: true, ...premium }];
+  }
+  return [{ domain, available: true, years: price.years, price: price.purchasePrice, renewalPrice: price.renewalPrice, ...premium }];
 }
 
 export async function rehearsePurchase(input: unknown, expectedPrice: unknown) {
   const [quote] = await searchDomain(input);
-  if (!quote?.available || !Number.isFinite(quote.price) || !Number.isFinite(quote.renewalPrice)) throw new HttpError(409, "This domain cannot be quoted right now. Search again.");
+  if (!quote?.available || !validTerm(quote.years) || !numericPrice(quote.price) || !numericPrice(quote.renewalPrice)) throw new HttpError(409, "This domain cannot be quoted right now. Search again.");
   if (typeof expectedPrice !== "number" || quote.price !== expectedPrice) throw new HttpError(409, "The registration price changed. Search again to review the latest price.");
   return { simulated: true, registered: false, charged: false, quote };
 }
