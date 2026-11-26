@@ -26,19 +26,26 @@ function seedDomain(status: "active" | "pending" = "active") {
   return { product, domain };
 }
 
-describe("domain validation and staging gate", () => {
+describe("domain validation and purchase preview controls", () => {
   it("normalizes hostnames and rejects URLs, IPs, local hosts and platform aliases", () => {
     expect(normalizeDomain(" Shop.MyBrand.com. ")).toBe("shop.mybrand.com");
     expect(normalizeDomain("bücher.de")).toBe("xn--bcher-kva.de");
     for (const value of ["https://mybrand.com", "mybrand.com/path", "a@mybrand.com", "127.0.0.1", "localhost", "x.local", "x.vercel.app", "a.com:443", "mybrand.com?x=1", "a..com", "-a.com"]) expect(normalizeDomain(value)).toBeNull();
   });
-  it("cannot enable purchasing in production, even with conflicting flags", async () => {
-    vi.stubEnv("DOMAIN_PURCHASE_PREVIEW", "true");
+  it("keeps discovery disabled unless explicitly enabled", async () => {
     expect(domainPurchasePreview()).toBe(false);
     await expect(searchDomain("mybrand.com")).rejects.toMatchObject({ status: 404 });
     expect(fetch).not.toHaveBeenCalled();
-    expect(domainPurchasePreview({ DOMAIN_PURCHASE_PREVIEW: "true", DEPLOYMENT_ENV: "preview", VERCEL_ENV: "production" })).toBe(false);
-    expect(domainPurchasePreview({ DOMAIN_PURCHASE_PREVIEW: "true", DEPLOYMENT_ENV: "preview", VERCEL_TARGET_ENV: "production" })).toBe(false);
+    expect(domainPurchasePreview({ DOMAIN_PURCHASE_PREVIEW: "true", DEPLOYMENT_ENV: "unknown" })).toBe(false);
+  });
+  it("allows production discovery and simulation without payment or registration calls", async () => {
+    vi.stubEnv("DOMAIN_PURCHASE_PREVIEW", "true");
+    expect(domainPurchasePreview()).toBe(true);
+    respond({ results: [{ domain: "mybrand.com", available: true, years: 1, price: 12, renewalPrice: 15, premium: false }] });
+    expect(await rehearsePurchase("mybrand.com", 12)).toMatchObject({ simulated: true, charged: false, registered: false });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("https://api.vercel.com/v1/registrar/domains/search");
+    expect(vi.mocked(fetch).mock.calls[0][1]?.headers).not.toHaveProperty("Authorization");
   });
   it("reads fresh availability and refuses a changed price without buying anything", async () => {
     stubDevelopment({ DOMAIN_PURCHASE_PREVIEW: "true" });

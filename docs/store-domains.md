@@ -1,10 +1,10 @@
-# Store domains: staging review
+# Store domains
 
 This release connects one primary hostname to each digital product or physical storefront. Physical storefronts are product records under the configured owner store. The Domains page is at `/admin/domains`; both product editors link to it.
 
 ## Staging first
 
-Apply `supabase/migrations/20261126185410_store_domains.sql` to preview only. The table uses RLS with no browser grants or policies; access is server-only. The migration version matches the preview migration history.
+Apply `supabase/migrations/20261126185410_store_domains.sql` to preview first, then production before enabling domain management there. The table uses RLS with no browser grants or policies; access is server-only. The migration is now applied in both environments with matching history versions.
 
 In the staging branch's Vercel Preview environment, set:
 
@@ -17,9 +17,9 @@ DOMAIN_VERCEL_TEAM_ID=<team ID>
 DOMAIN_VERCEL_TOKEN=<server-only scoped credential>
 ```
 
-Leave production unchanged. Search uses Vercel's public Registrar search API and works without the provisioning credential. Connections remain disabled until all three provider variables exist. Never reuse a token in client code or log it.
+After reviewing staging, enable `DOMAIN_PURCHASE_PREVIEW=true` in production too to show the same search and simulated review interface. Production does not set `DOMAIN_PREVIEW_BRANCH`. Search uses Vercel's public Registrar search API and works without the provisioning credential. Connections remain disabled until all three provider variables exist. Never reuse a token in client code or log it.
 
-Buying is a rehearsal: it retrieves current availability and registration/renewal quotes, displays a review dialog, and checks the registration price again before reporting an explicitly simulated result. No registrar purchase, renewal, payment, or DNS-write API is implemented. No contact or payment details are collected. The purchase UI and API are unavailable in production, even when the preview flag is set. Production enablement requires a future reviewed implementation, not an environment-variable change.
+Buying is a rehearsal: it retrieves current availability and registration/renewal quotes, displays a review dialog, and checks the registration price again before reporting an explicitly simulated result. No registrar purchase, renewal, payment, or DNS-write API is implemented. No contact or payment details are collected. The discovery/review UI works in both staging and production when enabled; its labels say purchase preview rather than staging preview. The flag never enables real buying, and the API does not accept a purchase action. Real registration requires a future reviewed implementation.
 
 Search first uses the combined Registrar search endpoint. Its negative result can also mean a lookup or pricing failure, so the server falls back to the exact-domain availability endpoint before reporting unavailability. Confirmed available names get domain-specific pricing when needed. Failed availability checks return an unknown state; failed pricing never changes an available domain into an unavailable one. Only complete numeric registration/renewal quotes can enter the purchase rehearsal.
 
@@ -41,7 +41,7 @@ Routing blocks management APIs and other product pages on custom domains. Shoppe
 - Live search, unavailable/unknown result, registration versus renewal costs, premium domains, and simulated completion.
 - Missing provider configuration, pending DNS, missing/expired certificate, and cross-environment rejection.
 - Custom root/policy/checkout paths, blocked management APIs, and cross-product checkout rejection.
-- Production denies both search and rehearsal, regardless of feature flags.
+- Both environments require owner authentication and the platform Origin. Search/rehearsal require the preview feature flag, and neither can register domains or take payment.
 - Full purchase acceptance requires a later release covering registrant contacts, provider commercial terms, payment/registration reconciliation, renewals, transfers, and customer support. Never treat a successful rehearsal as domain registration.
 
 References: [Vercel custom domains](https://vercel.com/docs/platforms/multi-tenant-platforms/configuring-domains), [Registrar API](https://vercel.com/docs/domains/registrar-api).

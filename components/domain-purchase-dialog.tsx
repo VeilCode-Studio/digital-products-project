@@ -16,7 +16,7 @@ export function DomainPurchaseDialog({ quote, open, onOpenChange, pending, renew
   return <Dialog open={open} onOpenChange={(next) => { if (!pending) onOpenChange(next); }}>
     <DialogContent className="domain-purchase-dialog" overlayClassName="domain-purchase-overlay">
       <DialogHeader className="domain-purchase-heading">
-        <span className="domain-purchase-badge">Staging preview</span>
+        <span className="domain-purchase-badge">Purchase preview</span>
         <DialogTitle>Review your domain</DialogTitle>
         <DialogDescription>Try the purchase flow. No payment or registration.</DialogDescription>
       </DialogHeader>

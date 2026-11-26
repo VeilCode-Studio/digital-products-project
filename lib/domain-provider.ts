@@ -129,7 +129,7 @@ function validTerm(value: unknown): value is number {
 /** Read-only Registrar API; no purchase endpoint or billing credential is used by this flow. */
 export async function searchDomain(input: unknown): Promise<DomainQuote[]> {
   getDeployment();
-  if (!domainPurchasePreview()) throw new HttpError(404, "Domain purchasing is only available for staging review.");
+  if (!domainPurchasePreview()) throw new HttpError(404, "Domain search and purchase preview are not enabled.");
   const domain = assertDomainName(input);
   const data = await registrar("search", { domains: [domain] });
   const result = Array.isArray(data?.results) ? data.results.find((item): item is Record<string, unknown> =>

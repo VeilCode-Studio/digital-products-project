@@ -67,7 +67,7 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         <Globe className="domains-icon" size={23} aria-hidden />
         <h2 id="connect-domain-title">Bring your own domain</h2>
         <p>Give a product or physical store its own address. Keep your domain with your current registrar.</p>
-        {!ready && <p className="domains-note">Connections need provider configuration before they can be added. Domain search below can still be reviewed in staging.</p>}
+        {!ready && <p className="domains-note">Connections need provider configuration before they can be added.{purchasePreview && " You can still search for a domain."}</p>}
         <form onSubmit={(event) => { event.preventDefault(); void run("connect", { action: "connect", productId, hostname }, () => { setHostname(""); toast.success("Domain added", { description: "Follow the DNS instructions below, then check the connection." }); }); }}>
           <label htmlFor="domain-product">Product or store</label>
           <Select value={productId} onValueChange={(value) => setProductId(value ?? "")}>
@@ -81,7 +81,7 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         <p className="domains-footnote">One primary domain per product. A draft stays private until you publish it.</p>
       </section>
       {purchasePreview && <section className="workspace-panel domains-panel domains-search" aria-labelledby="find-domain-title">
-        <span className="domains-badge">STAGING PREVIEW</span>
+        <span className="domains-badge">PURCHASE PREVIEW</span>
         <h2 id="find-domain-title">Find your next address</h2>
         <p>Search live availability and prices, then try the purchase flow. This preview cannot charge you or register a domain.</p>
         <form onSubmit={(event) => { event.preventDefault(); setQuote(null); setRehearsed(false); void run("search", { action: "search", hostname: search }, (data) => setQuote(data.quotes[0] ?? null)); }}>

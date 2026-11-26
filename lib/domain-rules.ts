@@ -14,11 +14,10 @@ export function normalizeDomain(input: unknown): string | null {
   return host;
 }
 
-/** Purchasing has no production override. Real registration is deliberately absent from this release. */
+/** Enables read-only discovery and a simulated review, never real registration or payment. */
 export function domainPurchasePreview(vars: Record<string, string | undefined> = process.env) {
   return vars.DOMAIN_PURCHASE_PREVIEW === "true" &&
-    ["development", "preview"].includes(vars.DEPLOYMENT_ENV ?? "") &&
-    vars.VERCEL_ENV !== "production" && vars.VERCEL_TARGET_ENV !== "production";
+    ["development", "preview", "production"].includes(vars.DEPLOYMENT_ENV ?? "");
 }
 
 export function storefrontPath(product: { kind?: string; slug: string }) {
