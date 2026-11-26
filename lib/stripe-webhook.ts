@@ -13,6 +13,7 @@ import { findAccountConnection, refreshConnection, stripeLivemode } from "./paym
 import { getSupabase } from "./supabase";
 import { recordPhysicalOrder } from "./physical-orders";
 import { adoptRecoveredSession, recordExpiredSession } from "./abandoned";
+import { DOMAIN_TEST_APP } from "./domain-checkout";
 
 export async function handleStripeWebhook(req: Request, connected = false) {
   const env = getEnv();
@@ -30,6 +31,11 @@ export async function handleStripeWebhook(req: Request, connected = false) {
   }
   if ((connected && !event.account) || (!connected && event.account) ||
       (typeof event.livemode === "boolean" && event.livemode !== stripeLivemode())) return Response.json({ received: true });
+  // Domain sandbox sessions are acknowledged by the signed webhook, but never fulfil merchandise,
+  // send download emails, or register real domains. The owner result view reads Stripe's payment state.
+  if (event.data.object.object === "checkout.session" && event.data.object.metadata?.app === DOMAIN_TEST_APP) {
+    return Response.json({ received: true, domainTest: true });
+  }
   let connection = null;
   if (connected) {
     try {

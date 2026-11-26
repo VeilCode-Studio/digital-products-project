@@ -20,6 +20,14 @@ export function domainPurchasePreview(vars: Record<string, string | undefined> =
     ["development", "preview", "production"].includes(vars.DEPLOYMENT_ENV ?? "");
 }
 
+/** Even a production test-key opt-in must never enable the domain sandbox checkout there. */
+export function domainTestPaymentsEnabled(vars: Record<string, string | undefined> = process.env) {
+  return vars.DOMAIN_TEST_PAYMENTS === "true" && domainPurchasePreview(vars) &&
+    ["development", "preview"].includes(vars.DEPLOYMENT_ENV ?? "") &&
+    vars.VERCEL_ENV !== "production" && vars.VERCEL_TARGET_ENV !== "production" &&
+    /^(sk|rk)_test_/.test(vars.STRIPE_SECRET_KEY ?? "");
+}
+
 export function storefrontPath(product: { kind?: string; slug: string }) {
   return `/${product.kind === "physical" ? "s" : "p"}/${encodeURIComponent(product.slug)}`;
 }

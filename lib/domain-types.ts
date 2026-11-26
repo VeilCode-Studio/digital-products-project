@@ -9,3 +9,9 @@ export type DomainQuote = {
   domain: string; available: boolean | null; years?: number; price?: number;
   renewalPrice?: number; premium?: boolean;
 };
+
+export type DomainTestPayment = {
+  id: string; domain: string; amount: number; currency: string;
+  status: "pending" | "processing" | "failed" | "paid" | "expired";
+  checkoutUrl: string | null; failure: string | null;
+};

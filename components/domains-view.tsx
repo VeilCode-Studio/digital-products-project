@@ -38,8 +38,8 @@ export function DomainSearchResult({ quote, pending, onPreview }: { quote: Domai
   </div>;
 }
 
-export function DomainsView({ domains, products, ready, purchasePreview, selectedProduct }: {
-  domains: StoreDomain[]; products: Product[]; ready: boolean; purchasePreview: boolean; selectedProduct?: string;
+export function DomainsView({ domains, products, ready, purchasePreview, selectedProduct, paymentTest = false }: {
+  domains: StoreDomain[]; products: Product[]; ready: boolean; purchasePreview: boolean; selectedProduct?: string; paymentTest?: boolean;
 }) {
   const router = useRouter();
   const [productId, setProductId] = useState(selectedProduct && products.some((p) => p.id === selectedProduct) ? selectedProduct : products[0]?.id ?? "");
@@ -52,6 +52,7 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
   const [remove, setRemove] = useState<StoreDomain | null>(null);
   const [renew, setRenew] = useState(false);
   const [rehearsed, setRehearsed] = useState(false);
+  const [requestId, setRequestId] = useState("");
   async function run(key: string, body: object, done: (data: Awaited<ReturnType<typeof call>>) => void) {
     if (pending) return;
     setPending(key); setError("");
@@ -81,15 +82,16 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         <p className="domains-footnote">One primary domain per product. A draft stays private until you publish it.</p>
       </section>
       {purchasePreview && <section className="workspace-panel domains-panel domains-search" aria-labelledby="find-domain-title">
-        <span className="domains-badge">PURCHASE PREVIEW</span>
+        <span className="domains-badge">{paymentTest ? "STRIPE TEST PAYMENTS" : "PURCHASE PREVIEW"}</span>
         <h2 id="find-domain-title">Find your next address</h2>
-        <p>Search live availability and prices, then try the purchase flow. This preview cannot charge you or register a domain.</p>
+        <p>{paymentTest ? "Search a domain, review its quote, then test successful or declined payments in Stripe Checkout. No real money moves and no real domain is registered." : "Search live availability and prices, then review the quote. Payment testing is available in staging."}</p>
         <form onSubmit={(event) => { event.preventDefault(); setQuote(null); setRehearsed(false); void run("search", { action: "search", hostname: search }, (data) => setQuote(data.quotes[0] ?? null)); }}>
           <label htmlFor="domain-search">Domain to search</label>
           <div className="domains-search-input"><Input id="domain-search" placeholder="mynewbrand.com" autoCapitalize="none" autoCorrect="off" value={search} onChange={(event) => { setSearch(event.target.value); setQuote(null); setRehearsed(false); }} required maxLength={253} /><Button type="submit" className="button secondary" disabled={!!pending || !search.trim()}><Search size={16} aria-hidden />{pending === "search" ? "Searching…" : "Search"}</Button></div>
         </form>
-        {quote && <DomainSearchResult quote={quote} pending={!!pending} onPreview={() => { setError(""); setRenew(false); setReview(true); }} />}
-        {rehearsed && <p className="domains-success" role="status">Purchase preview completed. No payment was taken and no domain was registered or connected.</p>}
+        {quote && <DomainSearchResult quote={quote} pending={!!pending} onPreview={() => { setError(""); setRenew(false); setRequestId(crypto.randomUUID()); setReview(true); }} />}
+        {rehearsed && <p className="domains-success" role="status">Quote verified. To test successful or declined payments, use staging.</p>}
+        {paymentTest && <details className="domain-test-cards"><summary>Test a successful or declined payment</summary><p>Use these cards in Stripe Checkout with any future expiry and any three-digit CVC.</p><dl><div><dt>Successful payment</dt><dd><code>4242 4242 4242 4242</code></dd></div><div><dt>Card declined</dt><dd><code>4000 0000 0000 0002</code></dd></div></dl><p>Do not enter a real card. A declined payment can be retried in the same Checkout session.</p></details>}
       </section>}
     </div>
     <section className="workspace-panel domains-panel" aria-labelledby="connected-domains-title">
@@ -107,8 +109,20 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         </div>
       </article>)}
     </section>
-    {quoted && quote && <DomainPurchaseDialog quote={quote} open={review} onOpenChange={setReview} pending={!!pending} renew={renew} onRenewChange={setRenew} error={error}
-      onConfirm={() => void run("rehearse", { action: "rehearse", hostname: quote.domain, expectedPrice: quote.price }, (data) => { if (data.simulated && data.charged === false && data.registered === false) { setRehearsed(true); setReview(false); } })} />}
+    {quoted && quote && <DomainPurchaseDialog quote={quote} open={review} onOpenChange={setReview} pending={!!pending} renew={renew} onRenewChange={setRenew} error={error} paymentTest={paymentTest}
+      onConfirm={() => {
+        if (!paymentTest) { void run("rehearse", { action: "rehearse", hostname: quote.domain, expectedPrice: quote.price }, () => { setRehearsed(true); setReview(false); }); return; }
+        if (pending) return;
+        setPending("payment"); setError("");
+        void (async () => {
+          try {
+            const response = await fetch("/api/admin/domain-checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId, hostname: quote.domain, expectedPrice: quote.price, expectedRenewalPrice: quote.renewalPrice, expectedYears: quote.years, renew }) });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || "Could not start the test checkout. Try again.");
+            window.location.assign(result.url);
+          } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not start checkout."); setPending(null); }
+        })();
+      }} />}
     <AlertDialog open={!!remove} onOpenChange={(open) => { if (!open && !pending) setRemove(null); }}>
       <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove {remove?.hostname}?</AlertDialogTitle><AlertDialogDescription>The store will use its platform link again. Domain registration and DNS records remain with your provider.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="button secondary" disabled={!!pending}>Keep domain</AlertDialogCancel><AlertDialogAction className="button danger" disabled={!!pending} onClick={() => { if (remove) void run("remove", { action: "remove", id: remove.id }, () => { setRemove(null); toast.success("Domain removed"); }); }}>Remove connection</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
     </AlertDialog>

@@ -11,6 +11,7 @@ In the staging branch's Vercel Preview environment, set:
 ```dotenv
 CUSTOM_DOMAINS_ENABLED=true
 DOMAIN_PURCHASE_PREVIEW=true
+DOMAIN_TEST_PAYMENTS=true
 DOMAIN_PREVIEW_BRANCH=staging
 DOMAIN_VERCEL_PROJECT_ID=<project ID>
 DOMAIN_VERCEL_TEAM_ID=<team ID>
@@ -19,7 +20,17 @@ DOMAIN_VERCEL_TOKEN=<server-only scoped credential>
 
 After reviewing staging, enable `DOMAIN_PURCHASE_PREVIEW=true` in production too to show the same search and simulated review interface. Production does not set `DOMAIN_PREVIEW_BRANCH`. Search uses Vercel's public Registrar search API and works without the provisioning credential. Connections remain disabled until all three provider variables exist. Never reuse a token in client code or log it.
 
-Buying is a rehearsal: it retrieves current availability and registration/renewal quotes, displays a review dialog, and checks the registration price again before reporting an explicitly simulated result. No registrar purchase, renewal, payment, or DNS-write API is implemented. No contact or payment details are collected. The discovery/review UI works in both staging and production when enabled; its labels say purchase preview rather than staging preview. The flag never enables real buying, and the API does not accept a purchase action. Real registration requires a future reviewed implementation.
+Discovery and quote review work in both staging and production. Staging additionally supports real Stripe sandbox Checkout with `DOMAIN_TEST_PAYMENTS=true`, a test Stripe key, and a non-production deployment. Production always rejects the sandbox payment endpoint, even if this flag is accidentally enabled. No registrar purchase or renewal API is implemented; a test payment cannot register or connect a domain.
+
+## Sandbox payment flow
+
+1. Search an available domain and open its review dialog.
+2. Continue to test payment. The server rechecks availability, registration cost, renewal estimate and term, then creates an idempotent Stripe test Checkout session using the server's price. Test renewal preference is metadata only.
+3. Stripe collects test card details on its hosted page. Use `4242 4242 4242 4242` for success or `4000 0000 0000 0002` for a decline, with any future expiry and any three-digit CVC. A declined card can be retried in the same session.
+4. After returning, the server retrieves Stripe's session and expanded PaymentIntent. Success requires a paid, completed session belonging to the authenticated owner, deployment and store, with matching USD amount. Declines, processing, pending and expired sessions have separate states. Return query parameters never prove payment. A request-scoped HTTP-only cookie locates the session after cancellation; cancellation alone never means payment failed.
+5. The result screen briefly polls Stripe and offers an explicit status check or return to an open Checkout session. Domain registration remains explicitly off. Signed webhook events for these sandbox sessions are acknowledged without creating merchandise orders, sending fulfillment emails or calling a registrar.
+
+Stripe remains the durable payment status source; no new database schema is required for this sandbox review. Real buying requires a later reviewed implementation with registrant contacts, durable payment/registration reconciliation, refunds when registration fails, renewal handling and support. Never use the return screen as domain fulfillment.
 
 Search first uses the combined Registrar search endpoint. Its negative result can also mean a lookup or pricing failure, so the server falls back to the exact-domain availability endpoint before reporting unavailability. Confirmed available names get domain-specific pricing when needed. Failed availability checks return an unknown state; failed pricing never changes an available domain into an unavailable one. Only complete numeric registration/renewal quotes can enter the purchase rehearsal.
 
@@ -38,10 +49,10 @@ Routing blocks management APIs and other product pages on custom domains. Shoppe
 ## Review checks
 
 - Desktop and mobile domain settings; keyboard navigation and confirmation dialogs.
-- Live search, unavailable/unknown result, registration versus renewal costs, premium domains, and simulated completion.
+- Live search, unavailable/unknown result, registration versus renewal costs, premium domains, and sandbox success/decline/retry/cancel states.
 - Missing provider configuration, pending DNS, missing/expired certificate, and cross-environment rejection.
 - Custom root/policy/checkout paths, blocked management APIs, and cross-product checkout rejection.
-- Both environments require owner authentication and the platform Origin. Search/rehearsal require the preview feature flag, and neither can register domains or take payment.
+- Both environments require owner authentication and the platform Origin for mutations. Search/quote review require the preview feature flag. Sandbox payment creation additionally requires the staging-only flag and a test key; neither path can register domains or take real money.
 - Full purchase acceptance requires a later release covering registrant contacts, provider commercial terms, payment/registration reconciliation, renewals, transfers, and customer support. Never treat a successful rehearsal as domain registration.
 
 References: [Vercel custom domains](https://vercel.com/docs/platforms/multi-tenant-platforms/configuring-domains), [Registrar API](https://vercel.com/docs/domains/registrar-api).
