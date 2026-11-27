@@ -32,7 +32,8 @@ export function DomainSearchResult({ quote, pending, onPreview }: { quote: Domai
       {canPreview(quote) ? <>
         <div className="domains-price">{usd(quote.price!)} <span>for {quote.years} {quote.years === 1 ? "year" : "years"}</span></div>
         <p>Renewal: {usd(quote.renewalPrice!)} for the quoted term. Prices and availability can change.</p>
-        {onPreview && <Button type="button" className="button" disabled={pending} onClick={onPreview}>Review and test payment</Button>}
+        {onPreview ? <Button type="button" className="button" disabled={pending} onClick={onPreview}>Review and test payment</Button>
+          : <p className="domains-note">Domain purchasing is not available yet. To use this address now, register it with a registrar, then enter it under Bring your own domain.</p>}
       </> : <p>This domain is available, but pricing could not be loaded. Search again to get a current quote.</p>}
     </> : <p>{quote.available === false ? "This domain is currently unavailable through our domain provider." : "We couldn't verify availability right now. Please search again; this doesn't mean the domain is taken."}</p>}
   </div>;
@@ -60,6 +61,10 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
     finally { setPending(null); router.refresh(); }
   }
   const quoted = canPreview(quote);
+  const connectHelp = !ready ? connectionNotice ?? "Domain connections need service configuration before a domain can be added."
+    : !productId ? "Create a product or store before connecting a domain."
+    : !hostname.trim() ? "Enter a domain you already own to enable Connect domain. Searching for an available domain does not purchase it."
+    : "Connect this domain, then follow the DNS instructions. Searching for an available domain does not purchase it.";
   return <div className="domains-workspace">
     {error && <p className="domains-error" role="alert">{error}</p>}
     <div className="domains-grid">
@@ -76,8 +81,8 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
           </Select>
           <label htmlFor="domain-host">Domain name</label>
           <Input id="domain-host" aria-describedby="domain-host-help" autoCapitalize="none" autoCorrect="off" placeholder="shop.mybrand.com" value={hostname} onChange={(event) => setHostname(event.target.value)} required maxLength={253} />
-          <p id="domain-host-help" className="domains-footnote">Enter a domain you already own. Searching for an available domain does not purchase it.</p>
-          <Button type="submit" className="button" disabled={!ready || !productId || !hostname.trim() || !!pending}>{pending === "connect" ? "Connecting…" : "Connect domain"}</Button>
+          <Button type="submit" className="button" aria-describedby="domain-host-help" disabled={!ready || !productId || !hostname.trim() || !!pending}>{pending === "connect" ? "Connecting…" : "Connect domain"}</Button>
+          <p id="domain-host-help" className="domains-footnote" role="status">{connectHelp}</p>
         </form>
         <p className="domains-footnote">One primary domain per product. A draft stays private until you publish it.</p>
       </section>

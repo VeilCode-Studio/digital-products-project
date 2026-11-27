@@ -27,8 +27,11 @@ it("shows the registration and renewal quote for a confirmed available domain", 
   expect(html).toContain("$1.49"); expect(html).toContain("$44.00");
   expect(html).not.toContain("Preview purchase");
   expect(html).not.toContain("Review and test payment");
+  expect(html).toContain("Domain purchasing is not available yet.");
+  expect(html).toContain("register it with a registrar");
 });
 it("offers payment testing only when the sandbox callback is supplied", () => {
   const html = renderToStaticMarkup(<DomainSearchResult quote={{ domain: "leadtokickoff.store", available: true, years: 1, price: 1.49, renewalPrice: 44 }} pending={false} onPreview={vi.fn()} />);
   expect(html).toContain("Review and test payment");
+  expect(html).not.toContain("Domain purchasing is not available yet.");
 });
