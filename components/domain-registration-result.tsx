@@ -6,7 +6,7 @@ import type { DomainPurchaseSummary } from "@/lib/domain-purchase-status";
 
 const pendingStates = new Set(["checkout_pending", "paid", "registering", "registration_pending", "refund_pending"]);
 const registrationLabels: Record<string, string> = { checkout_pending: "Waiting for payment", expired: "Not started", paid: "Payment received; waiting to register", registering: "Submitting registration", registration_pending: "Registrar is processing the order", registered: "Registration completed", registration_unknown: "Needs reconciliation", registration_failed: "Registration failed", refund_pending: "Registration failed", refunded: "Registration failed", refund_failed: "Registration failed" };
-const paymentLabels: Record<string, string> = { pending: "Not paid", processing: "Processing", paid: "Payment succeeded", failed: "Payment declined — retry in Checkout", expired: "Checkout expired" };
+const paymentLabels: Record<string, string> = { pending: "Not paid", processing: "Processing", paid: "Payment succeeded", failed: "Payment failed", expired: "Checkout expired" };
 
 export function DomainRegistrationResult({ id, initial, initialError }: { id: string; initial: DomainPurchaseSummary | null; initialError: string }) {
   const [purchase, setPurchase] = useState(initial);

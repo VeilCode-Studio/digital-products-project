@@ -86,6 +86,11 @@ export async function handleDomainPurchaseEvent(event: Stripe.Event): Promise<vo
   const { data: row, error } = await table().select("*").eq("id", session.metadata.purchase_id ?? "").maybeSingle();
   if (error) throw new Error("Domain purchase lookup failed");
   if (!row || row.origin !== new URL(getEnv().APP_URL).origin || row.livemode !== event.livemode) return;
+  if (event.type === "checkout.session.async_payment_failed" && row.status === "checkout_pending" && row.stripe_session_id === session.id) {
+    // Binding revalidates identity and amount without treating an unpaid event as payment success.
+    await bindDomainCheckout(row, session);
+    await updateDomainPurchase(row, { status: "expired", failure_code: "payment_failed", contact: null }); return;
+  }
   if (event.type === "checkout.session.expired" && row.status === "checkout_pending" && row.stripe_session_id === session.id) {
     await updateDomainPurchase(row, { status: "expired", contact: null }); return;
   }

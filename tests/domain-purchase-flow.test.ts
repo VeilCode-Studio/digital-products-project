@@ -17,7 +17,7 @@ const quote = { domain: "leadtokickoff.com", available: true, years: 1, price: 6
 const contact = { firstName: "Domain", lastName: "Test", email: "domain-test@example.com", phone: "+14155550123", address1: "123 Test Street", address2: "", city: "San Francisco", state: "CA", zip: "94105", country: "US", companyName: "" };
 const input = () => ({ requestId: randomUUID(), productId: "domain-product", hostname: quote.domain, expectedPrice: quote.price, expectedRenewalPrice: quote.renewalPrice, expectedYears: quote.years, renew: false, contact, acceptTerms: true });
 const context = () => domainPurchaseContext(OWNER_ID, STORE_ID);
-const webhook = (session: object) => handleStripeWebhook(new Request("http://localhost:3000/api/webhooks/stripe", { method: "POST", headers: { "stripe-signature": "verified-by-test-adapter" }, body: JSON.stringify({ type: "checkout.session.completed", livemode: false, data: { object: session } }) }));
+const webhook = (session: object, type = "checkout.session.completed") => handleStripeWebhook(new Request("http://localhost:3000/api/webhooks/stripe", { method: "POST", headers: { "stripe-signature": "verified-by-test-adapter" }, body: JSON.stringify({ type, livemode: false, data: { object: session } }) }));
 beforeEach(() => {
   resetFakes(); rpc.mockClear(); login.token = "owner-token";
   stubDevelopment({ DOMAIN_PURCHASE_MODE: "sandbox", DOMAIN_PURCHASE_PREVIEW: "true", VERCEL_TARGET_ENV: "" });
@@ -92,6 +92,13 @@ it("rejects a paid event with a changed amount and leaves the purchase unpaid", 
   const { session } = await checkout();
   expect((await webhook({ ...paid(session), amount_total: 1 })).status).toBe(500);
   expect(state.domain_purchases[0].status).toBe("checkout_pending"); expect(refundsCreate).not.toHaveBeenCalled();
+});
+it("closes a failed asynchronous payment without attempting domain registration or a refund", async () => {
+  const { row, session } = await checkout();
+  const response = await webhook({ ...session, status: "complete" }, "checkout.session.async_payment_failed");
+  expect(response.status).toBe(200);
+  expect(await domainPurchaseStatus(row.id, context())).toMatchObject({ status: "expired", paymentStatus: "failed", failure: "Payment failed. No domain registration was attempted." });
+  expect(rpc).not.toHaveBeenCalled(); expect(refundsCreate).not.toHaveBeenCalled();
 });
 it("fully refunds a failed simulated registration and does not refund again on replay", async () => {
   const { session } = await checkout("failure");
