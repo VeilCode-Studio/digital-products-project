@@ -5,7 +5,7 @@ import { resetFakes, seedProduct, state, sessionsCreate } from "./fakes";
 import { stubDevelopment } from "./env";
 import { normalizeDomain, domainPurchasePreview, domainPath } from "../lib/domain-rules";
 import { domainProduct, shopperOrigin, publicProductUrl } from "../lib/domains";
-import { connectDomain, checkDomain, removeDomain, searchDomain, rehearsePurchase } from "../lib/domain-provider";
+import { connectDomain, checkDomain, removeDomain, searchDomain, rehearsePurchase, domainServiceState } from "../lib/domain-provider";
 import { startCheckout } from "../lib/checkout";
 import { proxy } from "../proxy";
 
@@ -152,6 +152,27 @@ describe("store domain resolution and checkout", () => {
 describe("domain provider verification", () => {
   const assigned = { name: "mybrand.com", apexName: "mybrand.com", verified: true, gitBranch: null };
   const configured = { misconfigured: false, recommendedIPv4: [{ rank: 1, value: ["192.0.2.20"] }], recommendedCNAME: [] };
+  it.each([401, 403])("rejects an unusable credential (%s) before creating a pending record", async (status) => {
+    const product = seedProduct();
+    respond({ error: { message: "private-provider-detail" } }, status);
+    await expect(connectDomain(product.id, "mybrand.com")).rejects.toMatchObject({ status: 503 });
+    expect(state.store_domains).toHaveLength(0);
+    expect(vi.mocked(fetch).mock.calls.every(([, options]) => options?.method === "GET")).toBe(true);
+  });
+  it("does not consider a configured token verified until the intended project is returned", async () => {
+    respond({ id: "different-project" });
+    expect(await domainServiceState()).toMatchObject({ ready: false });
+    respond({ id: "project-test" });
+    expect(await domainServiceState()).toMatchObject({ ready: true });
+    expect(state.store_domains).toHaveLength(0);
+  });
+  it("does not expose provider errors or credentials through health results", async () => {
+    respond({ error: { message: "private-provider-detail" } }, 403);
+    const result = await domainServiceState();
+    expect(result.ready).toBe(false);
+    expect(result.message).toContain("permission");
+    expect(JSON.stringify(result)).not.toMatch(/private-provider-detail|provider-test-token|team-test/);
+  });
   it("does not activate until a valid certificate exists and shows provider DNS values", async () => {
     const { domain } = seedDomain("pending");
     respond(assigned); respond(configured); respond({ certs: [] });
@@ -172,18 +193,19 @@ describe("domain provider verification", () => {
     respond(assigned);
     await expect(checkDomain(domain.id)).rejects.toMatchObject({ status: 409 });
     state.store_domains = [];
-    respond({ ...assigned, gitBranch: "staging" }); respond({ ...assigned, gitBranch: "staging" }); respond(configured); respond({ certs: [] });
+    respond({ id: "project-test" }); respond({ ...assigned, gitBranch: "staging" }); respond({ ...assigned, gitBranch: "staging" }); respond(configured); respond({ certs: [] });
     await connectDomain(product.id, "mybrand.com");
-    const options = vi.mocked(fetch).mock.calls[1][1];
+    const options = vi.mocked(fetch).mock.calls[2][1];
     expect(JSON.parse(options?.body as string)).toEqual({ name: "mybrand.com", gitBranch: "staging" });
   });
   it("never forcibly moves an existing domain and retains failed reservations for reconciliation", async () => {
     const product = seedProduct();
+    respond({ id: "project-test" });
     respond({ error: {} }, 409);
     await expect(connectDomain(product.id, "mybrand.com")).rejects.toMatchObject({ status: 409 });
     expect(state.store_domains).toHaveLength(1);
     expect(state.store_domains[0].status).toBe("pending");
-    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).not.toHaveProperty("force");
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[1][1]?.body as string)).not.toHaveProperty("force");
   });
   it("will not remove a domain belonging to another environment", async () => {
     const { domain } = seedDomain();

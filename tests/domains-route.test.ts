@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { POST } from "../app/api/admin/domains/route";
+import { POST, GET } from "../app/api/admin/domains/route";
 import { resetFakes } from "./fakes";
 import { stubDevelopment } from "./env";
 
@@ -12,7 +12,19 @@ const request = (action: string, origin = "https://delivery.example.com") => new
 it("requires owner authentication for domain actions", async () => {
   session.token = null;
   expect((await POST(request("search"))).status).toBe(401);
+  expect((await GET()).status).toBe(401);
   expect(fetch).not.toHaveBeenCalled();
+});
+it("returns a private, read-only service check to the authenticated owner", async () => {
+  vi.stubEnv("CUSTOM_DOMAINS_ENABLED", "true");
+  vi.stubEnv("DOMAIN_VERCEL_TOKEN", "provider-test-token");
+  vi.stubEnv("DOMAIN_VERCEL_PROJECT_ID", "project-test");
+  vi.stubEnv("DOMAIN_VERCEL_TEAM_ID", "team-test");
+  vi.mocked(fetch).mockResolvedValueOnce(Response.json({ id: "project-test" }));
+  const response = await GET();
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.json()).toMatchObject({ ready: true });
 });
 it("requires the platform Origin for domain management", async () => {
   expect((await POST(request("connect", "https://evil.com"))).status).toBe(403);

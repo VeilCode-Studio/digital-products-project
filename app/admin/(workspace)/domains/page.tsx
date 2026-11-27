@@ -1,7 +1,7 @@
 import { ownerPage } from "@/lib/auth";
 import { listProducts } from "@/lib/catalog";
 import { listDomains, domainsEnabled } from "@/lib/domains";
-import { domainConnectionReady } from "@/lib/domain-provider";
+import { domainServiceState } from "@/lib/domain-provider";
 import { domainPurchasePreview } from "@/lib/domain-rules";
 import { domainTestPaymentsEnabled } from "@/lib/domain-rules";
 import { domainCheckoutCookie, domainTestPayment, DOMAIN_REQUEST_ID } from "@/lib/domain-checkout";
@@ -27,7 +27,7 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
     try { payment = await domainTestPayment(sessionId, owner.id); }
     catch (error) { paymentError = error instanceof HttpError ? error.message : "Payment status is unavailable. Check again shortly."; }
   }
-  const products = await listProducts();
+  const [products, service] = await Promise.all([listProducts(), domainServiceState()]);
   let domains: StoreDomain[] = [];
   let unavailable = false;
   try { domains = await listDomains(); } catch { unavailable = true; }
@@ -35,6 +35,6 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
     <div className="admin-page-heading"><div><span className="eyebrow">AN ADDRESS OF YOUR OWN</span><h1>Store domains</h1><p>Connect a memorable address to each product or physical store.</p></div></div>
     {paymentTest && (sessionId || query.domain_payment_return === "cancelled") && <DomainPaymentResult key={sessionId ?? "cancelled"} initial={payment} sessionId={sessionId} initialError={paymentError} returnedCancelled={query.domain_payment_return === "cancelled"} />}
     {unavailable && <p className="domains-error" role="alert">Domain records could not be loaded. Check the database update before connecting a domain.</p>}
-    <DomainsView domains={domains} products={products.map((p) => ({ id: p.id, name: p.name, kind: p.kind ?? "digital", status: p.status }))} ready={!unavailable && domainsEnabled() && domainConnectionReady()} purchasePreview={domainPurchasePreview()} selectedProduct={query.product} paymentTest={paymentTest} />
+    <DomainsView domains={domains} products={products.map((p) => ({ id: p.id, name: p.name, kind: p.kind ?? "digital", status: p.status }))} ready={!unavailable && domainsEnabled() && service.ready} connectionNotice={service.message} purchasePreview={domainPurchasePreview()} selectedProduct={query.product} paymentTest={paymentTest} />
   </>;
 }

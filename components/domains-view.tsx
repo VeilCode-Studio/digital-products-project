@@ -38,8 +38,8 @@ export function DomainSearchResult({ quote, pending, onPreview }: { quote: Domai
   </div>;
 }
 
-export function DomainsView({ domains, products, ready, purchasePreview, selectedProduct, paymentTest = false }: {
-  domains: StoreDomain[]; products: Product[]; ready: boolean; purchasePreview: boolean; selectedProduct?: string; paymentTest?: boolean;
+export function DomainsView({ domains, products, ready, purchasePreview, selectedProduct, paymentTest = false, connectionNotice }: {
+  domains: StoreDomain[]; products: Product[]; ready: boolean; purchasePreview: boolean; selectedProduct?: string; paymentTest?: boolean; connectionNotice?: string;
 }) {
   const router = useRouter();
   const [productId, setProductId] = useState(selectedProduct && products.some((p) => p.id === selectedProduct) ? selectedProduct : products[0]?.id ?? "");
@@ -67,7 +67,7 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         <Globe className="domains-icon" size={23} aria-hidden />
         <h2 id="connect-domain-title">Bring your own domain</h2>
         <p>Give a product or physical store its own address. Keep your domain with your current registrar.</p>
-        {!ready && <p className="domains-note">Connections need provider configuration before they can be added.{purchasePreview && " You can still search for a domain."}</p>}
+        {!ready && <p className="domains-note" role="status">{connectionNotice ?? "Connections need provider configuration before they can be added."}</p>}
         <form onSubmit={(event) => { event.preventDefault(); void run("connect", { action: "connect", productId, hostname }, () => { setHostname(""); toast.success("Domain added", { description: "Follow the DNS instructions below, then check the connection." }); }); }}>
           <label htmlFor="domain-product">Product or store</label>
           <Select value={productId} onValueChange={(value) => setProductId(value ?? "")}>
@@ -75,7 +75,8 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
             <SelectContent>{products.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}{product.status === "draft" ? " · Draft" : ""}</SelectItem>)}</SelectContent>
           </Select>
           <label htmlFor="domain-host">Domain name</label>
-          <Input id="domain-host" autoCapitalize="none" autoCorrect="off" placeholder="shop.mybrand.com" value={hostname} onChange={(event) => setHostname(event.target.value)} required maxLength={253} />
+          <Input id="domain-host" aria-describedby="domain-host-help" autoCapitalize="none" autoCorrect="off" placeholder="shop.mybrand.com" value={hostname} onChange={(event) => setHostname(event.target.value)} required maxLength={253} />
+          <p id="domain-host-help" className="domains-footnote">Enter a domain you already own. Searching for an available domain does not purchase it.</p>
           <Button type="submit" className="button" disabled={!ready || !productId || !hostname.trim() || !!pending}>{pending === "connect" ? "Connecting…" : "Connect domain"}</Button>
         </form>
         <p className="domains-footnote">One primary domain per product. A draft stays private until you publish it.</p>

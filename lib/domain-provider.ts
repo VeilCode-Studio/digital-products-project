@@ -25,6 +25,8 @@ async function vercel<T>(path: string, method = "GET", body?: object): Promise<T
     ...(body ? { body: JSON.stringify(body) } : {}), cache: "no-store", signal: AbortSignal.timeout(12_000),
   }).catch(() => { throw new HttpError(503, "The domain provider did not respond. Check status before trying again."); });
   if (!response.ok) {
+    if (response.status === 401) throw new HttpError(401, "The domain service could not authenticate. Its access token needs to be updated.");
+    if (response.status === 403) throw new HttpError(403, "The domain service does not have permission to manage this project. Check its access token permissions.");
     if (response.status === 404) throw new HttpError(404, "The domain was not found on the configured project.");
     if (response.status === 409 || response.status === 400) throw new HttpError(409, "This domain could not be connected. It may already belong to another project. No existing assignment was changed.");
     throw new HttpError(503, "The domain provider is unavailable. Check the configuration and try again.");
@@ -32,6 +34,25 @@ async function vercel<T>(path: string, method = "GET", body?: object): Promise<T
   return response.json() as Promise<T>;
 }
 const project = () => encodeURIComponent(process.env.DOMAIN_VERCEL_PROJECT_ID!);
+
+export type DomainServiceState = { ready: boolean; message: string };
+/** Read-only check. Never return provider responses, credentials or project metadata to the browser. */
+export async function domainServiceState(): Promise<DomainServiceState> {
+  if (!domainsEnabled()) return { ready: false, message: "Domain connections are not enabled for this environment." };
+  if (!domainConnectionReady()) return { ready: false, message: "Domain connections need service configuration before a domain can be added." };
+  try {
+    getDeployment();
+    // Validate the branch before reserving a domain, too.
+    domainBranch();
+    const configured = await vercel<{ id?: string }>(`/v9/projects/${project()}`);
+    if (configured.id !== process.env.DOMAIN_VERCEL_PROJECT_ID) return { ready: false, message: "The domain service returned an unexpected project. Check its configuration." };
+    return { ready: true, message: "Enter a domain you already own, then follow its DNS instructions after connecting." };
+  } catch (error) {
+    return { ready: false, message: error instanceof HttpError && error.status === 404 ? "The configured project is not accessible to the domain service. Check its configuration."
+      : error instanceof HttpError ? error.message
+      : "The domain service could not be verified right now. Please reload to check again." };
+  }
+}
 
 async function ownedDomain(id: unknown) {
   if (!domainsEnabled()) throw new HttpError(404, "Domain connections are not enabled.");
@@ -47,6 +68,8 @@ export async function connectDomain(productId: unknown, input: unknown) {
   const target = await domainTarget(productId);
   const hostname = assertDomainName(input);
   const branch = domainBranch();
+  const service = await domainServiceState();
+  if (!service.ready) throw new HttpError(503, service.message);
   // Reserve first: concurrent requests cannot attach one domain to two products.
   const { data, error } = await getSupabase().from("store_domains").insert({
     id: randomUUID(), store_id: STORE_ID, product_id: target.id, hostname, status: "pending", verification: [], checked_at: null,

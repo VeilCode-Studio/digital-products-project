@@ -1,9 +1,16 @@
 import { requireOwner } from "@/lib/auth";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
-import { connectDomain, checkDomain, removeDomain, searchDomain, rehearsePurchase } from "@/lib/domain-provider";
+import { connectDomain, checkDomain, removeDomain, searchDomain, rehearsePurchase, domainServiceState } from "@/lib/domain-provider";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+export async function GET() {
+  try {
+    await requireOwner();
+    return Response.json(await domainServiceState(), { headers: { "Cache-Control": "no-store" } });
+  } catch (error) { return apiError(error); }
+}
 
 export async function POST(req: Request) {
   try {
