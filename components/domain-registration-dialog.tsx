@@ -93,7 +93,7 @@ export function DomainRegistrationDialog({ quote, products, productId, sandbox, 
         </div>
         {sandbox && <div className="domain-registration-field"><label htmlFor="registration-scenario">After successful test payment</label>
           <Select value={scenario} onValueChange={(value) => setScenario(value ?? "success")} disabled={locked}>
-            <SelectTrigger id="registration-scenario"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="registration-scenario"><SelectValue>{scenario === "failure" ? "Registration fails → refund payment" : scenario === "uncertain" ? "Registrar times out → needs review" : "Registration succeeds"}</SelectValue></SelectTrigger>
             <SelectContent><SelectItem value="success">Registration succeeds</SelectItem><SelectItem value="failure">Registration fails → refund payment</SelectItem><SelectItem value="uncertain">Registrar times out → needs review</SelectItem></SelectContent>
           </Select>
         </div>}

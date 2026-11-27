@@ -48,7 +48,8 @@
 .domain-registration-quote { margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #f7f8fb; }
 .domain-registration-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .domain-registration-field { display: grid; gap: 6px; min-width: 0; }
-.domain-registration-field label { font-size: 12px; font-weight: 550; }
+.domain-registration-field label { margin: 0; font-size: 12px; font-weight: 550; }
+.domain-registration-field [data-slot="input"] { margin: 0; min-height: 38px; }
 .domain-registration-field [data-slot="select-trigger"] { width: 100%; }
 .domain-registration-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .domain-registration-title h3 { margin: 0; font-size: 15px; }
