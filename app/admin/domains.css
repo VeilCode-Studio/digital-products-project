@@ -9,7 +9,10 @@
 .domains-select { width: 100%; }
 .domains-panel input { width: 100%; min-height: 42px; background: var(--surface, white); }
 .domains-panel form > .button { justify-self: start; margin-top: 6px; }
-.domains-search-input, .domains-actions { display: flex; align-items: center; gap: 10px; }
+.domains-search-input, .domains-actions { display: flex; gap: 10px; }
+.domains-search-input { align-items: stretch; }
+.domains-search-input > [data-slot="input"], .domains-search-input > .button { height: 46px; min-height: 46px; margin: 0; }
+.domains-actions { align-items: center; }
 .domains-search-input input { min-width: 0; flex: 1; }
 .domains-badge, .domains-status { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; font-size: 11px; font-weight: 600; letter-spacing: .025em; }
 .domains-badge { margin-bottom: 20px; background: var(--surface-soft, #f5f4f1); }
