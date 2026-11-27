@@ -106,6 +106,7 @@ class Query implements PromiseLike<Result> {
       else if (this.table === "products") data = seedProduct({ status: "draft", revision: 0, stripe_price_id: null, stripe_product_id: null, storage_path: null, download_filename: null, ...this.values } as Partial<CatalogProduct>);
       else {
         const defaults: Row = this.table === "mcp_connections" ? { id: randomUUID(), last_used_at: null, revoked_at: null, client_id: null }
+          : this.table === "domain_purchases" ? { updated_at: new Date().toISOString(), stripe_session_id: null, stripe_payment_intent_id: null, stripe_refund_id: null, registrar_order_id: null, failure_code: null, registered_at: null }
           : this.table === "mcp_uploads" ? { id: randomUUID() } : this.table === "mcp_activity" ? { id: tableRows.length + 1 }
           : this.table === "mcp_secrets" ? { details: {}, expires_at: null, used_at: null }
           : this.table === "reviews" ? { id: randomUUID(), status: "pending", title: null, body: null, approved_at: null, updated_at: new Date().toISOString() }
@@ -151,6 +152,12 @@ export const storageRemove = vi.fn();
 export const storageCopy = vi.fn();
 export const rpc = vi.fn(async (name: string, args: Row) => {
   if (state.dbError) return { data: null, error: { code: "08000" } };
+  if (name === "claim_domain_registration") {
+    const row = state.domain_purchases.find((purchase) => purchase.id === args.p_id && purchase.status === "paid");
+    if (!row) return { data: [], error: null };
+    row.status = "registering"; row.updated_at = new Date().toISOString();
+    return { data: [{ ...row }], error: null };
+  }
   if (name === "consume_gift_download") {
     const row = state.subscribers.find((entry) => entry.download_token_hash === args.p_token_hash && Number(entry.download_count) < Number(args.p_max) && Date.parse(String(entry.token_expires_at)) > Date.now());
     if (!row) return { data: [], error: null };
@@ -236,6 +243,7 @@ export const promotionCodesUpdate = vi.fn();
 export const sessionsRetrieve = vi.fn();
 export const shippingRatesRetrieve = vi.fn();
 export const refundsCreate = vi.fn();
+export const refundsRetrieve = vi.fn();
 export const accountsRetrieve = vi.fn();
 export const oauthToken = vi.fn();
 export const oauthDeauthorize = vi.fn();
@@ -254,7 +262,8 @@ export function resetFakes() {
   promotionCodesUpdate.mockReset().mockImplementation(async (id: string, input: Row) => ({ id, ...input }));
   shippingRatesRetrieve.mockReset().mockImplementation(async (id: string) => { const rate = state.stripeShippingRates.get(id); if (!rate) throw { code: "resource_missing" }; return { ...rate }; });
   state.stripeShippingRates.clear();
-  refundsCreate.mockReset().mockImplementation(async (input: Row) => ({ id: "re_test_1", amount: 10795, payment_intent: input.payment_intent, status: "succeeded" }));
+  refundsCreate.mockReset().mockImplementation(async (input: Row) => ({ id: "re_test_1", amount: input.amount ?? 10795, payment_intent: input.payment_intent, status: "succeeded" }));
+  refundsRetrieve.mockReset();
   state.stores = [{ id: STORE_ID, owner_user_id: OWNER_ID, name: "PodStore", tagline: "Good systems. Better work.", bio: "Practical studio tools.", support_email: "support@veilcode.studio", website_url: "https://veilcode.studio" }];
   state.dbError = false; state.insertError = null; state.markSentError = false;
   state.stripeProducts.clear(); state.stripePrices.clear(); state.sessions.clear();

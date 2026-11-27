@@ -54,34 +54,34 @@ export async function domainServiceState(): Promise<DomainServiceState> {
   }
 }
 
-async function ownedDomain(id: unknown) {
+async function ownedDomain(id: unknown, storeId = STORE_ID) {
   if (!domainsEnabled()) throw new HttpError(404, "Domain connections are not enabled.");
   if (typeof id !== "string" || !/^[a-f0-9-]{36}$/i.test(id)) throw new HttpError(404, "Domain not found.");
-  const { data, error } = await getSupabase().from("store_domains").select("*").eq("store_id", STORE_ID).eq("id", id).maybeSingle();
+  const { data, error } = await getSupabase().from("store_domains").select("*").eq("store_id", storeId).eq("id", id).maybeSingle();
   if (error) throw new HttpError(503, "Could not load domain settings.");
   if (!data) throw new HttpError(404, "Domain not found.");
   return data;
 }
 
-export async function connectDomain(productId: unknown, input: unknown) {
+export async function connectDomain(productId: unknown, input: unknown, storeId = STORE_ID) {
   if (!domainConnectionReady()) throw new HttpError(503, "Domain connections need to be configured for this environment.");
-  const target = await domainTarget(productId);
+  const target = await domainTarget(productId, storeId);
   const hostname = assertDomainName(input);
   const branch = domainBranch();
   const service = await domainServiceState();
   if (!service.ready) throw new HttpError(503, service.message);
   // Reserve first: concurrent requests cannot attach one domain to two products.
   const { data, error } = await getSupabase().from("store_domains").insert({
-    id: randomUUID(), store_id: STORE_ID, product_id: target.id, hostname, status: "pending", verification: [], checked_at: null,
+    id: randomUUID(), store_id: storeId, product_id: target.id, hostname, status: "pending", verification: [], checked_at: null,
   }).select("*").single();
   if (error || !data) throw new HttpError(error?.code === "23505" ? 409 : 503, "This domain or store already has a connection. Remove the existing connection before adding another.");
   // On a provider timeout keep the pending reservation for reconciliation; never force/reassign.
   await vercel<ProjectDomain>(`/v10/projects/${project()}/domains`, "POST", { name: hostname, ...(branch ? { gitBranch: branch } : {}) });
-  return checkDomain(data.id);
+  return checkDomain(data.id, storeId);
 }
 
-export async function checkDomain(id: unknown) {
-  const row = await ownedDomain(id);
+export async function checkDomain(id: unknown, storeId = STORE_ID) {
+  const row = await ownedDomain(id, storeId);
   const branch = domainBranch();
   const path = `/v9/projects/${project()}/domains/${encodeURIComponent(row.hostname)}`;
   let assigned = await vercel<ProjectDomain>(path);
@@ -108,7 +108,7 @@ export async function checkDomain(id: unknown) {
       (name.startsWith("*.") && row.hostname.split(".").slice(1).join(".") === name.slice(2))));
   }
   const update = { status: secure ? "active" as const : "pending" as const, verification: records, checked_at: new Date().toISOString() };
-  const { data, error } = await getSupabase().from("store_domains").update(update).eq("store_id", STORE_ID).eq("id", row.id).select("*").single();
+  const { data, error } = await getSupabase().from("store_domains").update(update).eq("store_id", storeId).eq("id", row.id).select("*").single();
   if (error || !data) throw new HttpError(503, "Could not save the domain status.");
   return data;
 }

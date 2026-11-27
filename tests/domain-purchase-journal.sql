@@ -13,6 +13,24 @@ begin
   insert into public.domain_purchases(id,store_id,owner_user_id,product_id,hostname,origin,livemode,amount,renewal_amount,years,request_hash,contact)
   values(v_id,v_store,v_owner,v_product,'journal-check.example.com','https://staging.example.com',false,699,1203,1,repeat('a',64),'{"email":"test@example.com"}');
   begin
+    insert into public.domain_purchases(id,store_id,owner_user_id,product_id,hostname,origin,livemode,amount,renewal_amount,years,request_hash,contact)
+    values(gen_random_uuid(),v_store,v_owner,v_product,'journal-check.example.com','https://staging.example.com',false,699,1203,1,repeat('a',64),'{}');
+    raise exception 'Duplicate in-flight domain purchase accepted';
+  exception when unique_violation then null; end;
+  begin
+    update public.domain_purchases set simulation_scenario='uncertain' where id=v_id;
+    raise exception 'Simulation scenario changed after review';
+  exception when check_violation then null; end;
+  begin
+    update public.domain_purchases set terms_version='other' where id=v_id;
+    raise exception 'Terms version changed after review';
+  exception when check_violation then null; end;
+  begin
+    insert into public.domain_purchases(id,store_id,owner_user_id,product_id,hostname,origin,livemode,amount,renewal_amount,years,request_hash,contact,simulation_scenario)
+    values(gen_random_uuid(),v_store,v_owner,v_product,'mode-check.example.com','https://staging.example.com',true,699,1203,1,repeat('a',64),'{}','success');
+    raise exception 'A live purchase accepted a simulated outcome';
+  exception when check_violation then null; end;
+  begin
     update public.domain_purchases set status='registered',registrar_order_id='journal-order' where id=v_id;
     raise exception 'An unpaid purchase became registered';
   exception when check_violation then null; end;

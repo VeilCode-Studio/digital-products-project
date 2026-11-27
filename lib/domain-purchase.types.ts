@@ -9,4 +9,6 @@ export type DomainPurchase = {
   status: DomainPurchaseStatus; stripe_session_id: string | null; stripe_payment_intent_id: string | null;
   registrar_order_id: string | null; stripe_refund_id: string | null; failure_code: string | null;
   registered_at: string | null; created_at: string; updated_at: string;
+  simulation_scenario: "success" | "failure" | "uncertain" | null;
+  terms_version: string;
 };

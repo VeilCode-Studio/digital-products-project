@@ -14,6 +14,8 @@ import { getSupabase } from "./supabase";
 import { recordPhysicalOrder } from "./physical-orders";
 import { adoptRecoveredSession, recordExpiredSession } from "./abandoned";
 import { DOMAIN_TEST_APP } from "./domain-checkout";
+import { DOMAIN_PURCHASE_APP } from "./domain-purchase-journal";
+import { handleDomainPurchaseEvent } from "./domain-purchase-fulfillment";
 
 export async function handleStripeWebhook(req: Request, connected = false) {
   const env = getEnv();
@@ -35,6 +37,11 @@ export async function handleStripeWebhook(req: Request, connected = false) {
   // send download emails, or register real domains. The owner result view reads Stripe's payment state.
   if (event.data.object.object === "checkout.session" && event.data.object.metadata?.app === DOMAIN_TEST_APP) {
     return Response.json({ received: true, domainTest: true });
+  }
+  if (!connected && event.data.object.object === "checkout.session" && event.data.object.metadata?.app === DOMAIN_PURCHASE_APP) {
+    try { await handleDomainPurchaseEvent(event); }
+    catch { return Response.json({ error: "Domain purchase processing needs another attempt." }, { status: 500 }); }
+    return Response.json({ received: true, domainPurchase: true });
   }
   let connection = null;
   if (connected) {

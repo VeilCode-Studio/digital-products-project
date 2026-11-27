@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DomainPurchaseDialog } from "@/components/domain-purchase-dialog";
+import { DomainRegistrationDialog } from "@/components/domain-registration-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { DomainQuote, StoreDomain } from "@/lib/domain-types";
 
@@ -24,7 +25,7 @@ const canPreview = (quote: DomainQuote | null) => quote?.available === true &&
   typeof quote.renewalPrice === "number" && Number.isFinite(quote.renewalPrice) && quote.renewalPrice > 0 &&
   typeof quote.years === "number" && Number.isInteger(quote.years) && quote.years >= 1 && quote.years <= 10;
 
-export function DomainSearchResult({ quote, pending, onPreview }: { quote: DomainQuote; pending: boolean; onPreview?: () => void }) {
+export function DomainSearchResult({ quote, pending, onPreview, purchaseLabel = "Review and test payment" }: { quote: DomainQuote; pending: boolean; onPreview?: () => void; purchaseLabel?: string }) {
   return <div className="domains-quote" aria-live="polite">
     <strong>{quote.domain}</strong>
     {quote.available === true ? <>
@@ -32,15 +33,15 @@ export function DomainSearchResult({ quote, pending, onPreview }: { quote: Domai
       {canPreview(quote) ? <>
         <div className="domains-price">{usd(quote.price!)} <span>for {quote.years} {quote.years === 1 ? "year" : "years"}</span></div>
         <p>Renewal: {usd(quote.renewalPrice!)} for the quoted term. Prices and availability can change.</p>
-        {onPreview ? <Button type="button" className="button" disabled={pending} onClick={onPreview}>Review and test payment</Button>
+        {onPreview ? <Button type="button" className="button" disabled={pending} onClick={onPreview}>{purchaseLabel}</Button>
           : <p className="domains-note">Domain purchasing is not available yet. To use this address now, register it with a registrar, then enter it under Bring your own domain.</p>}
       </> : <p>This domain is available, but pricing could not be loaded. Search again to get a current quote.</p>}
     </> : <p>{quote.available === false ? "This domain is currently unavailable through our domain provider." : "We couldn't verify availability right now. Please search again; this doesn't mean the domain is taken."}</p>}
   </div>;
 }
 
-export function DomainsView({ domains, products, ready, purchasePreview, selectedProduct, paymentTest = false, connectionNotice }: {
-  domains: StoreDomain[]; products: Product[]; ready: boolean; purchasePreview: boolean; selectedProduct?: string; paymentTest?: boolean; connectionNotice?: string;
+export function DomainsView({ domains, products, ready, purchasePreview, selectedProduct, paymentTest = false, connectionNotice, purchaseMode = null }: {
+  domains: StoreDomain[]; products: Product[]; ready: boolean; purchasePreview: boolean; selectedProduct?: string; paymentTest?: boolean; connectionNotice?: string; purchaseMode?: "sandbox" | "live" | null;
 }) {
   const router = useRouter();
   const [productId, setProductId] = useState(selectedProduct && products.some((p) => p.id === selectedProduct) ? selectedProduct : products[0]?.id ?? "");
@@ -87,14 +88,14 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         <p className="domains-footnote">One primary domain per product. A draft stays private until you publish it.</p>
       </section>
       {purchasePreview && <section className="workspace-panel domains-panel domains-search" aria-labelledby="find-domain-title">
-        <span className="domains-badge">{paymentTest ? "STRIPE TEST PAYMENTS" : "DOMAIN SEARCH"}</span>
+        <span className="domains-badge">{purchaseMode === "sandbox" ? "SANDBOX PURCHASES" : paymentTest ? "STRIPE TEST PAYMENTS" : "DOMAIN SEARCH"}</span>
         <h2 id="find-domain-title">Find your next address</h2>
-        <p>{paymentTest ? "Search a domain, review its quote, then test successful or declined payments in Stripe Checkout. No real money moves and no real domain is registered." : "Check domain availability and registration and renewal prices. Domain purchasing is not available yet."}</p>
+        <p>{purchaseMode === "sandbox" ? "Try the full purchase flow: test payments, simulated registration and refunds. No real money moves and no real domain is registered." : purchaseMode === "live" ? "Find an available address, review its price and registrant details, then pay securely through Stripe." : paymentTest ? "Search a domain, review its quote, then test successful or declined payments in Stripe Checkout. No real money moves and no real domain is registered." : "Check domain availability and registration and renewal prices. Domain purchasing is not available yet."}</p>
         <form onSubmit={(event) => { event.preventDefault(); setQuote(null); void run("search", { action: "search", hostname: search }, (data) => setQuote(data.quotes[0] ?? null)); }}>
           <label htmlFor="domain-search">Domain to search</label>
           <div className="domains-search-input"><Input id="domain-search" placeholder="mynewbrand.com" autoCapitalize="none" autoCorrect="off" value={search} onChange={(event) => { setSearch(event.target.value); setQuote(null); }} required maxLength={253} /><Button type="submit" className="button secondary" disabled={!!pending || !search.trim()}><Search size={16} aria-hidden />{pending === "search" ? "Searching…" : "Search"}</Button></div>
         </form>
-        {quote && <DomainSearchResult quote={quote} pending={!!pending} onPreview={paymentTest ? () => { setError(""); setRenew(false); setRequestId(crypto.randomUUID()); setReview(true); } : undefined} />}
+        {quote && <DomainSearchResult quote={quote} pending={!!pending} purchaseLabel={purchaseMode === "live" ? "Review domain purchase" : "Review and test payment"} onPreview={purchaseMode || paymentTest ? () => { setError(""); setRenew(false); setRequestId(crypto.randomUUID()); setReview(true); } : undefined} />}
         {paymentTest && <details className="domain-test-cards"><summary>Test a successful or declined payment</summary><p>Use these cards in Stripe Checkout with any future expiry and any three-digit CVC.</p><dl><div><dt>Successful payment</dt><dd><code>4242 4242 4242 4242</code></dd></div><div><dt>Card declined</dt><dd><code>4000 0000 0000 0002</code></dd></div></dl><p>Do not enter a real card. A declined payment can be retried in the same Checkout session.</p></details>}
       </section>}
     </div>
@@ -113,7 +114,8 @@ export function DomainsView({ domains, products, ready, purchasePreview, selecte
         </div>
       </article>)}
     </section>
-    {paymentTest && quoted && quote && <DomainPurchaseDialog quote={quote} open={review} onOpenChange={setReview} pending={!!pending} renew={renew} onRenewChange={setRenew} error={error} paymentTest={paymentTest}
+    {purchaseMode && quoted && quote && review && <DomainRegistrationDialog key={requestId} requestId={requestId} quote={quote} products={products} productId={productId} sandbox={purchaseMode === "sandbox"} open={review} onOpenChange={setReview} />}
+    {!purchaseMode && paymentTest && quoted && quote && <DomainPurchaseDialog quote={quote} open={review} onOpenChange={setReview} pending={!!pending} renew={renew} onRenewChange={setRenew} error={error} paymentTest={paymentTest}
       onConfirm={() => {
         if (pending) return;
         setPending("payment"); setError("");

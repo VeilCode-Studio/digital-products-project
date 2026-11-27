@@ -44,6 +44,20 @@
   font-family: var(--font-mona, system-ui), sans-serif;
 }
 .domain-purchase-overlay { z-index: 1001; background: #10183038; }
+.domain-registration-dialog { max-width: 640px; }
+.domain-registration-quote { margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #f7f8fb; }
+.domain-registration-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.domain-registration-field { display: grid; gap: 6px; min-width: 0; }
+.domain-registration-field label { font-size: 12px; font-weight: 550; }
+.domain-registration-field [data-slot="select-trigger"] { width: 100%; }
+.domain-registration-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.domain-registration-title h3 { margin: 0; font-size: 15px; }
+.domain-registration-help { margin: -8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.domain-registration-status { display: grid; gap: 14px; margin: 22px 0; }
+.domain-registration-status > div { display: grid; grid-template-columns: 140px 1fr; gap: 16px; font-size: 14px; }
+.domain-registration-status dt { color: var(--muted); }
+.domain-registration-status dd { margin: 0; }
+@media (max-width: 480px) { .domain-registration-fields { grid-template-columns: 1fr; } .domain-registration-status > div { grid-template-columns: 1fr; gap: 4px; } }
 .domain-purchase-dialog .dialog-close { top: 16px; right: 16px; }
 .domain-purchase-dialog .domain-purchase-heading { gap: 0; text-align: left; }
 .domain-purchase-badge { justify-self: start; margin-bottom: 12px; padding: 4px 8px; border-radius: 6px; background: var(--blue-wash); color: var(--accent); font-size: 10px; font-weight: 650; line-height: 1.5; letter-spacing: .04em; text-transform: uppercase; }

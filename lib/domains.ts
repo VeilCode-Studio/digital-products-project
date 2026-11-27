@@ -27,9 +27,9 @@ export async function domainProduct(host: string) {
   return product.status === "published" ? product : null;
 }
 
-export async function domainTarget(id: unknown) {
+export async function domainTarget(id: unknown, storeId = STORE_ID) {
   if (typeof id !== "string" || !/^[a-z0-9-]{1,100}$/i.test(id)) throw new HttpError(404, "Choose an existing product or store.");
-  const { data, error } = await getSupabase().from("products").select("*").eq("store_id", STORE_ID).eq("id", id).maybeSingle();
+  const { data, error } = await getSupabase().from("products").select("*").eq("store_id", storeId).eq("id", id).maybeSingle();
   if (error) throw new HttpError(503, "Could not load the store.");
   if (!data) throw new HttpError(404, "Choose an existing product or store.");
   return data;

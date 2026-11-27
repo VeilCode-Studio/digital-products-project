@@ -3,6 +3,7 @@ import { sendReviewRequests } from "@/lib/reviews";
 import { checkCjPrices } from "@/lib/margins";
 import { syncCjOrders } from "@/lib/cj-orders";
 import { renewCjSubscriptions } from "@/lib/cj-webhooks";
+import { recoverDomainPurchases } from "@/lib/domain-purchase-recovery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,9 @@ export async function GET(req: Request) {
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const results: Record<string, unknown> = {};
+  // Domain recovery uses Stripe/Vercel independently of the CJ rate limit and runs alongside its tasks.
+  const domainRecovery = recoverDomainPurchases().then((result) => { results.domainPurchases = result; })
+    .catch(() => { results.domainPurchases = { error: true }; });
   // CJ allows about a call a second, so its tasks share the minute: tracking first, then prices.
   const tasks: [string, () => Promise<unknown>][] = [
     ["reviewRequests", () => sendReviewRequests()], ["cjOrders", () => syncCjOrders(30, 15_000)], ["cjPrices", () => checkCjPrices(25, 25_000)], ["cjSubscriptions", () => renewCjSubscriptions()],
@@ -29,5 +33,6 @@ export async function GET(req: Request) {
     try { results[name] = await task(); }
     catch (error) { console.error(`Daily task failed: ${name}`, error instanceof Error ? error.message.slice(0, 200) : ""); results[name] = { error: true }; }
   }
+  await domainRecovery;
   return Response.json({ ok: true, results }, { headers: { "Cache-Control": "no-store" } });
 }

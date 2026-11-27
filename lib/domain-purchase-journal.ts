@@ -6,10 +6,11 @@ import { HttpError } from "./http";
 import { normalizeDomain } from "./domain-rules";
 import { DOMAIN_REQUEST_ID } from "./domain-checkout";
 import type { DomainPurchase } from "./domain-purchase.types";
+import { DOMAIN_TERMS_VERSION } from "./domain-registration-terms";
 
 export const DOMAIN_PURCHASE_APP = "veilcode-domain-purchase";
 export type DomainPurchaseContext = { storeId: string; ownerId: string; origin: string; livemode: boolean };
-type ReviewedPurchase = { id: string; productId: string; hostname: string; amount: number; renewalAmount: number; years: number; autoRenew: boolean; contact: Record<string, unknown> };
+type ReviewedPurchase = { id: string; productId: string; hostname: string; amount: number; renewalAmount: number; years: number; autoRenew: boolean; contact: Record<string, unknown>; simulationScenario?: "success" | "failure" | "uncertain" | null };
 
 function journalError() { return new HttpError(503, "The domain purchase record could not be saved. Check its status before trying again."); }
 const purchases = () => getSupabase().from("domain_purchases");
@@ -41,7 +42,7 @@ export async function saveReviewedDomainPurchase(review: ReviewedPurchase, conte
   const { data: product, error: productError } = await getSupabase().from("products").select("id").eq("store_id", context.storeId).eq("id", review.productId).maybeSingle();
   if (productError) throw journalError();
   if (!product) throw new HttpError(404, "Choose a product belonging to this store.");
-  const requestHash = createHash("sha256").update(JSON.stringify(canonical({ context, review }))).digest("hex");
+  const requestHash = createHash("sha256").update(JSON.stringify(canonical({ context, review, termsVersion: DOMAIN_TERMS_VERSION }))).digest("hex");
   const existing = await ownedDomainPurchase(review.id, context);
   if (existing) {
     if (existing.request_hash !== requestHash) throw new HttpError(409, "This purchase request changed. Start a new review.");
@@ -51,12 +52,12 @@ export async function saveReviewedDomainPurchase(review: ReviewedPurchase, conte
     id: review.id, store_id: context.storeId, owner_user_id: context.ownerId, product_id: review.productId,
     hostname: review.hostname, origin: context.origin, livemode: context.livemode,
     amount: review.amount, renewal_amount: review.renewalAmount, currency: "usd", years: review.years, auto_renew: review.autoRenew,
-    request_hash: requestHash, contact: review.contact, status: "checkout_pending",
+    request_hash: requestHash, contact: review.contact, status: "checkout_pending", simulation_scenario: context.livemode ? null : review.simulationScenario ?? "success", terms_version: DOMAIN_TERMS_VERSION,
   }).select("*").single();
   if (error?.code === "23505") {
     const concurrent = await ownedDomainPurchase(review.id, context);
     if (concurrent?.request_hash === requestHash) return concurrent;
-    throw new HttpError(409, "This purchase request is already in use. Start a new review.");
+    throw new HttpError(409, "A purchase for this domain is already pending. Check your previous purchase before starting another.");
   }
   if (error || !data) throw journalError();
   return data;
