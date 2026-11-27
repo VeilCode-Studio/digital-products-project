@@ -12,8 +12,8 @@ export const getStore = cache(async function getStore() {
   if (error || !data) throw new Error("Store unavailable. Apply the storefront migration.");
   return data;
 });
-export async function listProducts(published = false, kind?: ProductKind) {
-  let query = getSupabase().from("products").select("*").eq("store_id", STORE_ID);
+export async function listProducts(published = false, kind?: ProductKind, storeId = STORE_ID) {
+  let query = getSupabase().from("products").select("*").eq("store_id", storeId);
   if (published) query = query.eq("status", "published");
   if (kind) query = query.eq("kind", kind);
   const { data, error } = await query.order("sort_order").order("created_at", { ascending: false });

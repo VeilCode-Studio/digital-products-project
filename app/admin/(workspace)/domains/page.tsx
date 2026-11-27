@@ -1,4 +1,5 @@
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { listProducts } from "@/lib/catalog";
 import { listDomains, domainsEnabled } from "@/lib/domains";
 import { domainServiceState } from "@/lib/domain-provider";
@@ -13,7 +14,6 @@ import { DomainsView } from "@/components/domains-view";
 import { DomainRegistrationResult } from "@/components/domain-registration-result";
 import { domainPurchaseContext, domainPurchaseMode } from "@/lib/domain-purchase-mode";
 import { domainPurchaseStatus, type DomainPurchaseSummary } from "@/lib/domain-purchase-status";
-import { STORE_ID } from "@/lib/store-config";
 import { NavSection } from "@/components/admin-nav";
 import type { StoreDomain } from "@/lib/domain-types";
 import "../../domains.css";
@@ -21,6 +21,7 @@ import "../../domains.css";
 export const dynamic = "force-dynamic";
 export default async function DomainsPage({ searchParams }: { searchParams: Promise<{ product?: string; purchase?: string; domain_payment?: string; domain_payment_return?: string; domain_request?: string }> }) {
   const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
   const query = await searchParams;
   const paymentTest = domainTestPaymentsEnabled();
   const purchaseMode = domainPurchaseMode();
@@ -28,7 +29,7 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
   let purchaseError = "";
   const purchaseId = purchaseMode && query.purchase && DOMAIN_REQUEST_ID.test(query.purchase) ? query.purchase : null;
   if (purchaseId) {
-    try { purchase = await domainPurchaseStatus(purchaseId, domainPurchaseContext(owner.id, STORE_ID)); }
+    try { purchase = await domainPurchaseStatus(purchaseId, domainPurchaseContext(owner.id, storeId)); }
     catch (error) { purchaseError = error instanceof HttpError ? error.message : "Purchase status could not be loaded. Please check again."; }
   }
   const cancelRequest = query.domain_request && DOMAIN_REQUEST_ID.test(query.domain_request) ? query.domain_request : null;
@@ -39,10 +40,10 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
     try { payment = await domainTestPayment(sessionId, owner.id); }
     catch (error) { paymentError = error instanceof HttpError ? error.message : "Payment status is unavailable. Check again shortly."; }
   }
-  const [products, service] = await Promise.all([listProducts(), domainServiceState()]);
+  const [products, service] = await Promise.all([listProducts(false, undefined, storeId), domainServiceState()]);
   let domains: StoreDomain[] = [];
   let unavailable = false;
-  try { domains = await listDomains(); } catch { unavailable = true; }
+  try { domains = await listDomains(storeId); } catch { unavailable = true; }
   return <><NavSection href="/admin/domains" />
     <div className="admin-page-heading"><div><span className="eyebrow">AN ADDRESS OF YOUR OWN</span><h1>Store domains</h1><p>Connect a memorable address to each product or physical store.</p></div></div>
     {paymentTest && (sessionId || query.domain_payment_return === "cancelled") && <DomainPaymentResult key={sessionId ?? "cancelled"} initial={payment} sessionId={sessionId} initialError={paymentError} returnedCancelled={query.domain_payment_return === "cancelled"} />}

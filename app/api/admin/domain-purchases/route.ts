@@ -1,6 +1,5 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
-import { STORE_ID } from "@/lib/store-config";
 import { domainPurchaseContext } from "@/lib/domain-purchase-mode";
 import { startDomainPurchase } from "@/lib/domain-purchase-checkout";
 import { domainPurchaseStatus } from "@/lib/domain-purchase-status";
@@ -11,17 +10,17 @@ export const maxDuration = 60;
 const json = (data: unknown) => Response.json(data, { headers: { "Cache-Control": "no-store" } });
 export async function GET(req: Request) {
   try {
-    const owner = await requireOwner();
+    const { ownerId, storeId } = await requireWorkspace();
     const id = new URL(req.url).searchParams.get("id");
     if (!id) throw new HttpError(400, "Choose a domain purchase.");
-    return json(await domainPurchaseStatus(id, domainPurchaseContext(owner.id, STORE_ID)));
+    return json(await domainPurchaseStatus(id, domainPurchaseContext(ownerId, storeId)));
   } catch (error) { return apiError(error); }
 }
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    const owner = await requireOwner();
-    const context = domainPurchaseContext(owner.id, STORE_ID);
+    const { ownerId, storeId } = await requireWorkspace();
+    const context = domainPurchaseContext(ownerId, storeId);
     const body = await jsonObject(req, 8000);
     if (body.action === "reconcile" && typeof body.id === "string") return json(await domainPurchaseStatus(body.id, context, true));
     if (body.action === "resume_checkout" && typeof body.id === "string") {

@@ -9,9 +9,9 @@ import type { CatalogProduct } from "./catalog.types";
 
 export const domainsEnabled = () => process.env.CUSTOM_DOMAINS_ENABLED === "true";
 
-export async function listDomains() {
+export async function listDomains(storeId = STORE_ID) {
   if (!domainsEnabled()) return [];
-  const { data, error } = await getSupabase().from("store_domains").select("*").eq("store_id", STORE_ID).order("created_at");
+  const { data, error } = await getSupabase().from("store_domains").select("*").eq("store_id", storeId).order("created_at");
   if (error) throw new HttpError(503, "Domain settings are unavailable. Check that the domains database update is installed.");
   return data;
 }

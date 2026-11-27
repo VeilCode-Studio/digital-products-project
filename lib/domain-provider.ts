@@ -16,13 +16,14 @@ export function domainConnectionReady() {
   return domainsEnabled() && !!process.env.DOMAIN_VERCEL_TOKEN && !!process.env.DOMAIN_VERCEL_PROJECT_ID && !!process.env.DOMAIN_VERCEL_TEAM_ID;
 }
 
-async function vercel<T>(path: string, method = "GET", body?: object): Promise<T> {
+async function vercel<T>(path: string, method = "GET", body?: object, signal?: AbortSignal): Promise<T> {
   if (!domainConnectionReady()) throw new HttpError(503, "Domain connections need to be configured for this environment.");
+  if (signal?.aborted) throw new HttpError(503, "The domain check took too long. Check its status before trying again.");
   const url = new URL(path, "https://api.vercel.com");
   url.searchParams.set("teamId", process.env.DOMAIN_VERCEL_TEAM_ID!);
   const response = await fetch(url, {
     method, headers: { Authorization: `Bearer ${process.env.DOMAIN_VERCEL_TOKEN}`, "Content-Type": "application/json" },
-    ...(body ? { body: JSON.stringify(body) } : {}), cache: "no-store", signal: AbortSignal.timeout(12_000),
+    ...(body ? { body: JSON.stringify(body) } : {}), cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(12_000)]) : AbortSignal.timeout(12_000),
   }).catch(() => { throw new HttpError(503, "The domain provider did not respond. Check status before trying again."); });
   if (!response.ok) {
     if (response.status === 401) throw new HttpError(401, "The domain service could not authenticate. Its access token needs to be updated.");
@@ -37,14 +38,14 @@ const project = () => encodeURIComponent(process.env.DOMAIN_VERCEL_PROJECT_ID!);
 
 export type DomainServiceState = { ready: boolean; message: string };
 /** Read-only check. Never return provider responses, credentials or project metadata to the browser. */
-export async function domainServiceState(): Promise<DomainServiceState> {
+export async function domainServiceState(signal?: AbortSignal): Promise<DomainServiceState> {
   if (!domainsEnabled()) return { ready: false, message: "Domain connections are not enabled for this environment." };
   if (!domainConnectionReady()) return { ready: false, message: "Domain connections need service configuration before a domain can be added." };
   try {
     getDeployment();
     // Validate the branch before reserving a domain, too.
     domainBranch();
-    const configured = await vercel<{ id?: string }>(`/v9/projects/${project()}`);
+    const configured = await vercel<{ id?: string }>(`/v9/projects/${project()}`, "GET", undefined, signal);
     if (configured.id !== process.env.DOMAIN_VERCEL_PROJECT_ID) return { ready: false, message: "The domain service returned an unexpected project. Check its configuration." };
     return { ready: true, message: "Enter a domain you already own, then follow its DNS instructions after connecting." };
   } catch (error) {
@@ -64,11 +65,12 @@ async function ownedDomain(id: unknown, storeId = STORE_ID) {
 }
 
 export async function connectDomain(productId: unknown, input: unknown, storeId = STORE_ID) {
+  const signal = AbortSignal.timeout(35_000);
   if (!domainConnectionReady()) throw new HttpError(503, "Domain connections need to be configured for this environment.");
   const target = await domainTarget(productId, storeId);
   const hostname = assertDomainName(input);
   const branch = domainBranch();
-  const service = await domainServiceState();
+  const service = await domainServiceState(signal);
   if (!service.ready) throw new HttpError(503, service.message);
   // Reserve first: concurrent requests cannot attach one domain to two products.
   const { data, error } = await getSupabase().from("store_domains").insert({
@@ -76,23 +78,23 @@ export async function connectDomain(productId: unknown, input: unknown, storeId 
   }).select("*").single();
   if (error || !data) throw new HttpError(error?.code === "23505" ? 409 : 503, "This domain or store already has a connection. Remove the existing connection before adding another.");
   // On a provider timeout keep the pending reservation for reconciliation; never force/reassign.
-  await vercel<ProjectDomain>(`/v10/projects/${project()}/domains`, "POST", { name: hostname, ...(branch ? { gitBranch: branch } : {}) });
-  return checkDomain(data.id, storeId);
+  await vercel<ProjectDomain>(`/v10/projects/${project()}/domains`, "POST", { name: hostname, ...(branch ? { gitBranch: branch } : {}) }, signal);
+  return checkDomain(data.id, storeId, signal);
 }
 
-export async function checkDomain(id: unknown, storeId = STORE_ID) {
+export async function checkDomain(id: unknown, storeId = STORE_ID, signal = AbortSignal.timeout(35_000)) {
   const row = await ownedDomain(id, storeId);
   const branch = domainBranch();
   const path = `/v9/projects/${project()}/domains/${encodeURIComponent(row.hostname)}`;
-  let assigned = await vercel<ProjectDomain>(path);
+  let assigned = await vercel<ProjectDomain>(path, "GET", undefined, signal);
   // Never activate or remove a domain attached to another environment.
   if ((assigned.gitBranch ?? null) !== branch) throw new HttpError(409, "This domain belongs to another deployment environment.");
   if (!assigned.verified) {
     // A missing DNS challenge is an expected state. Re-read the challenges after attempting verification.
-    try { await vercel(`${path}/verify`, "POST"); } catch (error) { if (!(error instanceof HttpError) || error.status !== 409) throw error; }
-    assigned = await vercel<ProjectDomain>(path);
+    try { await vercel(`${path}/verify`, "POST", undefined, signal); } catch (error) { if (!(error instanceof HttpError) || error.status !== 409) throw error; }
+    assigned = await vercel<ProjectDomain>(path, "GET", undefined, signal);
   }
-  const config = await vercel<DomainConfig>(`/v6/domains/${encodeURIComponent(row.hostname)}/config?projectIdOrName=${project()}`);
+  const config = await vercel<DomainConfig>(`/v6/domains/${encodeURIComponent(row.hostname)}/config?projectIdOrName=${project()}`, "GET", undefined, signal);
   const records: DnsRecord[] = (assigned.verification ?? []).map((record) => ({ type: record.type, name: record.domain, value: record.value }));
   if (row.hostname === assigned.apexName) {
     const preferred = [...(config.recommendedIPv4 ?? [])].sort((a, b) => a.rank - b.rank)[0];
@@ -103,7 +105,7 @@ export async function checkDomain(id: unknown, storeId = STORE_ID) {
   }
   let secure = false;
   if (assigned.verified && config.misconfigured === false) {
-    const certificates = await vercel<{ certs: Certificate[] }>("/v8/certs");
+    const certificates = await vercel<{ certs: Certificate[] }>("/v8/certs", "GET", undefined, signal);
     secure = certificates.certs.some((cert) => cert.expiresAt > Date.now() && cert.cns.some((name) => name === row.hostname ||
       (name.startsWith("*.") && row.hostname.split(".").slice(1).join(".") === name.slice(2))));
   }
@@ -113,27 +115,29 @@ export async function checkDomain(id: unknown, storeId = STORE_ID) {
   return data;
 }
 
-export async function removeDomain(id: unknown) {
-  const row = await ownedDomain(id);
+export async function removeDomain(id: unknown, storeId = STORE_ID) {
+  const signal = AbortSignal.timeout(35_000);
+  const row = await ownedDomain(id, storeId);
   const path = `/v9/projects/${project()}/domains/${encodeURIComponent(row.hostname)}`;
   // Disable routing before contacting the provider. A failed removal stays visibly pending.
-  const disabled = await getSupabase().from("store_domains").update({ status: "pending" }).eq("store_id", STORE_ID).eq("id", row.id);
+  const disabled = await getSupabase().from("store_domains").update({ status: "pending" }).eq("store_id", storeId).eq("id", row.id);
   if (disabled.error) throw new HttpError(503, "Could not disable the domain.");
   try {
-    const assigned = await vercel<ProjectDomain>(path);
+    const assigned = await vercel<ProjectDomain>(path, "GET", undefined, signal);
     if ((assigned.gitBranch ?? null) !== domainBranch()) throw new HttpError(409, "This domain belongs to another deployment environment.");
-    await vercel(path, "DELETE");
+    await vercel(path, "DELETE", undefined, signal);
   } catch (error) { if (!(error instanceof HttpError) || error.status !== 404) throw error; }
-  const { error } = await getSupabase().from("store_domains").delete().eq("store_id", STORE_ID).eq("id", row.id);
+  const { error } = await getSupabase().from("store_domains").delete().eq("store_id", storeId).eq("id", row.id);
   if (error) throw new HttpError(503, "Could not remove the domain record. Check status and try again.");
 }
 
 /** A provider failure or malformed response is unknown, never evidence of an unavailable domain. */
-async function registrar(path: string, body?: object): Promise<Record<string, unknown> | null> {
+async function registrar(path: string, body?: object, signal?: AbortSignal): Promise<Record<string, unknown> | null> {
+  if (signal?.aborted) return null;
   try {
     const response = await fetch(`https://api.vercel.com/v1/registrar/domains/${path}`, {
       method: body ? "POST" : "GET", ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
-      cache: "no-store", signal: AbortSignal.timeout(12_000),
+      cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(12_000)]) : AbortSignal.timeout(12_000),
     });
     if (!response.ok) return null;
     const value: unknown = await response.json();
@@ -150,11 +154,11 @@ function validTerm(value: unknown): value is number {
 }
 
 /** Read-only Registrar API; no purchase endpoint or billing credential is used by this flow. */
-export async function searchDomain(input: unknown): Promise<DomainQuote[]> {
+export async function searchDomain(input: unknown, signal = AbortSignal.timeout(24_000)): Promise<DomainQuote[]> {
   getDeployment();
   if (!domainPurchasePreview()) throw new HttpError(404, "Domain search and purchase preview are not enabled.");
   const domain = assertDomainName(input);
-  const data = await registrar("search", { domains: [domain] });
+  const data = await registrar("search", { domains: [domain] }, signal);
   const result = Array.isArray(data?.results) ? data.results.find((item): item is Record<string, unknown> =>
     item !== null && typeof item === "object" && item.domain === domain) : undefined;
   const knownAvailable = result?.available === true;
@@ -166,10 +170,10 @@ export async function searchDomain(input: unknown): Promise<DomainQuote[]> {
   // Ask the explicit endpoint before declaring a name unavailable (reproduced on staging for .store).
   const exact = encodeURIComponent(domain);
   if (!knownAvailable) {
-    const availability = await registrar(`${exact}/availability`);
+    const availability = await registrar(`${exact}/availability`, undefined, signal);
     if (availability?.available !== true) return [{ domain, available: availability?.available === false ? false : null }];
   }
-  const price = await registrar(`${exact}/price`);
+  const price = await registrar(`${exact}/price`, undefined, signal);
   if (!price || !validTerm(price.years) || !numericPrice(price.purchasePrice) || !numericPrice(price.renewalPrice)) {
     return [{ domain, available: true, ...premium }];
   }

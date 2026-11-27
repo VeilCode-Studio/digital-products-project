@@ -152,6 +152,21 @@ describe("store domain resolution and checkout", () => {
 describe("domain provider verification", () => {
   const assigned = { name: "mybrand.com", apexName: "mybrand.com", verified: true, gitBranch: null };
   const configured = { misconfigured: false, recommendedIPv4: [{ rank: 1, value: ["192.0.2.20"] }], recommendedCNAME: [] };
+  it("stops a cancelled provider chain without falsely activating its pending domain", async () => {
+    const { domain } = seedDomain("pending");
+    const controller = new AbortController();
+    vi.mocked(fetch).mockImplementationOnce(async () => { controller.abort(); return Response.json(assigned); });
+    await expect(checkDomain(domain.id, domain.store_id, controller.signal)).rejects.toMatchObject({ status: 503 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(state.store_domains[0]).toMatchObject({ status: "pending", checked_at: null });
+  });
+  it("returns unknown when discovery is cancelled rather than making more fallback requests", async () => {
+    stubDevelopment({ DOMAIN_PURCHASE_PREVIEW: "true" });
+    const controller = new AbortController();
+    vi.mocked(fetch).mockImplementationOnce(async () => { controller.abort(); return Response.json({ results: [{ domain: "leadtokickoff.com", available: false }] }); });
+    expect(await searchDomain("leadtokickoff.com", controller.signal)).toEqual([{ domain: "leadtokickoff.com", available: null }]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it.each([401, 403])("rejects an unusable credential (%s) before creating a pending record", async (status) => {
     const product = seedProduct();
     respond({ error: { message: "private-provider-detail" } }, status);
