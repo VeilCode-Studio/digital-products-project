@@ -24,6 +24,14 @@ The requested outcome is a working domain flow and an application that onboards 
 ## Current evidence and remaining work
 
 - Existing release supports live availability/prices and Stripe sandbox payment outcomes. Live registrar purchase/fulfillment is missing.
-- Existing domain readiness checks only environment-variable presence. Provider verification and safe preflight are the first implementation changes on `feat/domain-onboarding`.
+- Staging readiness now verifies read access to the intended Vercel project before reserving a domain record. Verified against the configured credential; this is not proof of DNS/HTTPS or registrar purchase permissions.
+- Added the server-only purchase journal in staging (`20261127050414_domain_purchase_operations`). Real database tests run as `service_role` inside a rollback transaction and verify ownership/product constraints, immutable quotes/provider references, single-use registration claims, refusal to retry uncertain registrations, refund references, terminal states and contact cleanup. Anonymous/authenticated roles cannot read or claim purchases.
+- Journal helpers verify owner/store/origin/mode on reads, preserve request idempotency across JSON property ordering, bind one Stripe session, and require matching paid session metadata/amount/currency before recording payment. They are not yet wired to public checkout or registrar fulfillment.
 - Existing authentication allows a configured owner only; store operations broadly use a constant store ID. This isolation refactor and user onboarding remain required, not complete.
 - Production stays on the existing release while this goal is implemented and reviewed.
+
+## Security gates before public signup
+
+The staging advisor reports an existing backup table with RLS disabled and leaked-password protection disabled. These remain onboarding hardening work; no backup data was inspected or changed in the domain journal migration. References: [RLS-disabled remediation](https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public), [password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+
+The journal's RLS-enabled/no-policy informational notice is intentional: browser roles have no grants, there are no client read/write policies, and all operations require the server's verified owner context. [RLS notice](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).

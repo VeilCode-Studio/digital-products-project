@@ -3,6 +3,7 @@ import type { PaymentConnection, PaymentOAuthAttempt, ProductPaymentRef } from "
 import type { RateInput, VariantInput } from "./store-input";
 import type { ResearchProduct } from "./research.types";
 import type { StoreDomain } from "./domain-types";
+import type { DomainPurchase } from "./domain-purchase.types";
 // Mirrors the migrations. Keep these types with the schema.
 export type McpScope = "read" | "research" | "build";
 export type McpClient = { client_id: string; name: string; redirect_uris: string[]; secret_hash: string | null; jwks_uri: string | null; created_at: string };
@@ -83,6 +84,7 @@ export type FulfillmentStatus = "needs_ordering" | "ordered" | "shipped" | "deli
 export type Database = {
   public: {
     Tables: {
+      domain_purchases: { Row: DomainPurchase; Insert: Pick<DomainPurchase, "id" | "store_id" | "owner_user_id" | "product_id" | "hostname" | "origin" | "livemode" | "amount" | "renewal_amount" | "years" | "request_hash" | "contact"> & Partial<DomainPurchase>; Update: Partial<DomainPurchase>; Relationships: [] };
       store_domains: { Row: StoreDomain; Insert: Pick<StoreDomain, "id" | "store_id" | "product_id" | "hostname"> & Partial<StoreDomain>; Update: Partial<StoreDomain>; Relationships: [] };
       payment_connections: { Row: PaymentConnection; Insert: Partial<PaymentConnection> & Pick<PaymentConnection, "store_id" | "provider" | "external_account_id" | "livemode" | "status">; Update: Partial<PaymentConnection>; Relationships: [] };
       payment_oauth_attempts: { Row: PaymentOAuthAttempt; Insert: PaymentOAuthAttempt; Update: Partial<PaymentOAuthAttempt>; Relationships: [] };
@@ -117,6 +119,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      claim_domain_registration: { Args: { p_id: string }; Returns: DomainPurchase[] };
       consume_gift_download: { Args: { p_token_hash: string; p_max: number }; Returns: { gift_product_id: string | null }[] };
       record_short_link_click: { Args: { p_link_id: string; p_country: string | null; p_device: string | null; p_in_app: string | null }; Returns: undefined };
       activate_payment_connection: {
