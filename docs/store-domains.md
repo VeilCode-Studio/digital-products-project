@@ -18,9 +18,11 @@ DOMAIN_VERCEL_TEAM_ID=<team ID>
 DOMAIN_VERCEL_TOKEN=<server-only scoped credential>
 ```
 
-After reviewing staging, enable `DOMAIN_PURCHASE_PREVIEW=true` in production too to show the same search and simulated review interface. Production does not set `DOMAIN_PREVIEW_BRANCH`. Search uses Vercel's public Registrar search API and works without the provisioning credential. Connections remain disabled until all three provider variables exist. Never reuse a token in client code or log it.
+`DOMAIN_PURCHASE_PREVIEW=true` enables domain search in production. Production does not set `DOMAIN_PREVIEW_BRANCH`. Search uses Vercel's public Registrar search API and works without the provisioning credential. Connections remain disabled until all three provider variables exist. Never reuse a token in client code or log it.
 
-Discovery and quote review work in both staging and production. Staging additionally supports real Stripe sandbox Checkout with `DOMAIN_TEST_PAYMENTS=true`, a test Stripe key, and a non-production deployment. Production always rejects the sandbox payment endpoint, even if this flag is accidentally enabled. No registrar purchase or renewal API is implemented; a test payment cannot register or connect a domain.
+Production displays availability and prices with an explicit notice that purchasing is not available. It has no purchase or rehearsal button and never directs customers to staging. Staging supports review and real Stripe sandbox Checkout with `DOMAIN_TEST_PAYMENTS=true`, a test Stripe key, and a non-production deployment. Production always rejects the sandbox payment endpoint, even if this flag is accidentally enabled. No registrar purchase or renewal API is implemented; a test payment cannot register or connect a domain.
+
+Live purchasing is unfinished, not simply feature-flagged off. The app needs registrar credentials, registrant contact collection and validation, durable purchase records, verified payment webhooks, registrar order submission and reconciliation, refund handling for failed registration, product assignment and renewal management. Do not enable live charges by weakening the sandbox guard. Deployment of the sandbox code is not acceptance of this live workflow.
 
 ## Sandbox payment flow
 
