@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { getEnv } from "@/lib/env";
 import { findOrder } from "@/lib/orders";
 import { deliverOrder, DeliveryBusyError } from "@/lib/delivery";
+import { STORE_ID } from "@/lib/store-config";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
   }
   try {
     const order = await findOrder(sessionId);
-    if (!order) return Response.json({ error: "Order not found" }, { status: 404, headers });
+    if (!order || order.store_id !== STORE_ID) return Response.json({ error: "Order not found" }, { status: 404, headers });
     const recipient = await deliverOrder({ order, force: true, email: email as string | undefined });
     return Response.json({ ok: true, email: recipient }, { headers });
   } catch (error) {

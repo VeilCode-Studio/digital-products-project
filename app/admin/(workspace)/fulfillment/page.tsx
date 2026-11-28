@@ -2,6 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Clock, ExternalLink, PackageOpen, RotateCcw, Truck } from "lucide-react";
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
+import { STORE_ID } from "@/lib/store-config";
 import { fulfillmentCounts, FULFILLMENT_STATUSES, listPhysicalOrders, trackingLink } from "@/lib/fulfillment";
 import { storefrontMediaBase } from "@/lib/storefront";
 import { isOverdue, originalShipBy, promisedShipBy } from "@/lib/order-dates";
@@ -97,12 +99,13 @@ function OrderCard({ order, mediaBase, cj }: { order: Order; mediaBase: string; 
 }
 
 export default async function FulfillmentPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await ownerPage();
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
   const requested = (await searchParams).status;
   const status = FULFILLMENT_STATUSES.includes(requested as FulfillmentStatus) ? requested as FulfillmentStatus : "needs_ordering";
-  const [counts, orders] = await Promise.all([fulfillmentCounts(), listPhysicalOrders(status)]);
+  const [counts, orders] = await Promise.all([fulfillmentCounts(storeId), listPhysicalOrders(status, storeId)]);
   const mediaBase = storefrontMediaBase();
-  const cj = cjConfigured();
+  const cj = storeId === STORE_ID && cjConfigured();
   return <><NavSection href="/admin/fulfillment" />
     <div className="admin-page-heading"><div><span className="eyebrow">FROM SUPPLIER TO DOORSTEP</span><h1>Fulfilment</h1><p>Order each item from its supplier, add tracking, and we&apos;ll keep the customer updated.</p></div>{cj && (status === "ordered" || status === "shipped") && <CjSyncButton />}</div>
     <nav className="fulfil-tabs" aria-label="Order status">

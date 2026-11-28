@@ -61,9 +61,9 @@ export async function adoptRecoveredSession(session: Stripe.Checkout.Session, st
 }
 
 /** Checkouts that expired unpaid in the last 30 days and haven't been recovered, newest first. */
-export async function listAbandoned(limit = 50): Promise<AbandonedCheckout[]> {
+export async function listAbandoned(limit = 50, storeId = STORE_ID): Promise<AbandonedCheckout[]> {
   const since = new Date(Date.now() - RECOVERY_DAYS * 86_400_000).toISOString();
-  const { data, error } = await getSupabase().from("checkouts").select("*").eq("store_id", STORE_ID)
+  const { data, error } = await getSupabase().from("checkouts").select("*").eq("store_id", storeId)
     .gte("expired_at", since).is("recovered_at", null).order("expired_at", { ascending: false }).limit(limit);
   if (error) throw new Error("Could not load abandoned checkouts");
   return ((data ?? []) as CheckoutRow[]).map((row) => {

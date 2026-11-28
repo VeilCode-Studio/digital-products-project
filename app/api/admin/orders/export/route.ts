@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
 import { recentOrders } from "@/lib/dashboard";
 import { apiError } from "@/lib/http";
 import { csvCell } from "@/lib/csv";
@@ -6,8 +6,8 @@ import { csvCell } from "@/lib/csv";
 export const runtime = "nodejs";
 export async function GET() {
   try {
-    await requireOwner();
-    const orders = await recentOrders(5000);
+    const { storeId } = await requireWorkspace();
+    const orders = await recentOrders(5000, storeId);
     const rows = [["Session", "Email", "Product", "Amount (minor units)", "Currency", "Email status", "Fulfilment", "Purchased at"],
       ...orders.map((order) => [order.stripe_session_id, order.email,
         order.physical_snapshot?.items[0]?.name ?? order.product_snapshot?.name ?? order.product_id,

@@ -6,6 +6,7 @@ import { getEnv } from "./env";
 import { HttpError } from "./http";
 import { STORE_ID } from "./store-config";
 import { getCatalogProduct } from "./catalog";
+import { stripeLivemode } from "./payment-connections";
 import { daysBetween, isoDate, originalShipBy, promisedShipBy } from "./order-dates";
 import { sendCancellationEmail, sendDelayNotice, sendOwnerCancellationAlert } from "./physical-email";
 import type { FulfillmentStatus, Order } from "./database.types";
@@ -24,9 +25,11 @@ export function hashCancelToken(token: string) {
 
 /** Refunds the whole payment. Safe to repeat: Stripe returns the same refund for the same order. */
 export async function refundOrder(order: Order) {
+  if (order.store_id !== STORE_ID && !order.payment_connection_id) throw new Error("Payment account not found");
   let options: { stripeAccount?: string } = {};
   if (order.payment_connection_id) {
-    const { data, error } = await getSupabase().from("payment_connections").select("external_account_id").eq("id", order.payment_connection_id).maybeSingle();
+    const { data, error } = await getSupabase().from("payment_connections").select("external_account_id")
+      .eq("id", order.payment_connection_id).eq("store_id", order.store_id).eq("provider", "stripe").eq("livemode", stripeLivemode()).maybeSingle();
     if (error || !data) throw new Error("Payment account not found");
     options = { stripeAccount: (data as { external_account_id: string }).external_account_id };
   }
@@ -66,11 +69,11 @@ export async function cancelOrder(order: Order, by: "owner" | "customer", refund
   const { data, error } = await getSupabase().from("orders").update({
     fulfillment_status: "cancelled", cancelled_at: new Date().toISOString(), cancelled_by: by, cancel_token_hash: null,
     ...(refunded ? { refund_id: refunded.id, refunded_amount: refunded.amount } : {}),
-  }).eq("id", order.id).eq("store_id", STORE_ID).eq("kind", "physical").eq("fulfillment_status", status).select("*").maybeSingle();
+  }).eq("id", order.id).eq("store_id", order.store_id).eq("kind", "physical").eq("fulfillment_status", status).select("*").maybeSingle();
   if (error) throw new Error("Could not update order");
   if (!data) {
     // Changed meanwhile: most often a second click that already cancelled it.
-    const { data: latest } = await getSupabase().from("orders").select("*").eq("id", order.id).eq("store_id", STORE_ID).maybeSingle();
+    const { data: latest } = await getSupabase().from("orders").select("*").eq("id", order.id).eq("store_id", order.store_id).maybeSingle();
     if ((latest as Order | null)?.fulfillment_status === "cancelled") return latest as Order;
     if (refunded) console.error("Refunded, but the order changed before it was cancelled", { orderId: order.id });
     throw new HttpError(409, "This order changed in the meantime. Reload to see its latest status.");
@@ -80,7 +83,7 @@ export async function cancelOrder(order: Order, by: "owner" | "customer", refund
     try { await sendCancellationEmail(cancelled, refunded.amount); } catch { console.warn("Cancellation email not sent", { orderId: order.id }); }
   }
   if (by === "customer") {
-    const { data: store } = await getSupabase().from("stores").select("support_email").eq("id", STORE_ID).maybeSingle();
+    const { data: store } = await getSupabase().from("stores").select("support_email").eq("id", order.store_id).maybeSingle();
     const ownerEmail = (store as { support_email?: string } | null)?.support_email;
     if (ownerEmail) {
       try { await sendOwnerCancellationAlert(cancelled, ownerEmail, refunded?.amount ?? 0); } catch { console.warn("Owner cancellation alert not sent", { orderId: order.id }); }
@@ -105,6 +108,8 @@ export function parseShipBy(value: unknown, order: Order, today = new Date()) {
  * newest link works. If the email can't be sent nothing is recorded, so the owner can retry.
  */
 export async function sendOrderDelay(order: Order, input: { shipBy: string; reason: string }) {
+  // Tenant-specific cancellation URLs are part of the pending public-routing rollout.
+  if (order.store_id !== STORE_ID) throw new HttpError(503, "Delay notices are not available for this workspace yet. Contact the customer directly.");
   const status = order.fulfillment_status ?? "needs_ordering";
   if (!CANCELLABLE.includes(status)) throw new HttpError(409, "Only orders that haven't shipped can be delayed.");
   const product = await getCatalogProduct(order.product_id);

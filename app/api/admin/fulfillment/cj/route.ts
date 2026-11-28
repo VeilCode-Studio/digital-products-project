@@ -1,4 +1,5 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
+import { STORE_ID } from "@/lib/store-config";
 import { sameOrigin, apiError, HttpError, jsonObject } from "@/lib/http";
 import { placeCjOrder, planCjOrder, syncCjOrders } from "@/lib/cj-orders";
 import { connectCjUpdates } from "@/lib/cj-webhooks";
@@ -15,7 +16,9 @@ const orderId = (value: unknown) => {
 /** Ordering from CJ: plan (prices, stock, shipping; places nothing), place, and sync tracking. */
 export async function POST(req: Request) {
   try {
-    sameOrigin(req); await requireOwner();
+    sameOrigin(req);
+    const { storeId } = await requireWorkspace();
+    if (storeId !== STORE_ID) throw new HttpError(503, "CJ fulfilment is not configured for this workspace. Use manual fulfilment.");
     const body = await jsonObject(req);
     let result: unknown;
     switch (body.action) {

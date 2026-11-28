@@ -73,26 +73,26 @@ export function parseFulfillmentAction(body: Record<string, unknown>): Fulfillme
   }
 }
 
-export async function listPhysicalOrders(status: FulfillmentStatus) {
+export async function listPhysicalOrders(status: FulfillmentStatus, storeId = STORE_ID) {
   const { data, error } = await getSupabase().from("orders").select("*")
-    .eq("store_id", STORE_ID).eq("kind", "physical").eq("fulfillment_status", status)
+    .eq("store_id", storeId).eq("kind", "physical").eq("fulfillment_status", status)
     // Oldest first while work is outstanding, so nothing waits at the bottom of the list.
     .order("created_at", { ascending: status === "needs_ordering" || status === "ordered" }).limit(200);
   if (error) throw new Error("Could not load orders");
   return (data ?? []) as Order[];
 }
 
-export async function fulfillmentCounts() {
+export async function fulfillmentCounts(storeId = STORE_ID) {
   const { data, error } = await getSupabase().from("orders").select("fulfillment_status")
-    .eq("store_id", STORE_ID).eq("kind", "physical").limit(10000);
+    .eq("store_id", storeId).eq("kind", "physical").limit(10000);
   if (error) throw new Error("Could not load order counts");
   const counts = Object.fromEntries(FULFILLMENT_STATUSES.map((status) => [status, 0])) as Record<FulfillmentStatus, number>;
   for (const row of (data ?? []) as Pick<Order, "fulfillment_status">[]) if (row.fulfillment_status) counts[row.fulfillment_status]++;
   return counts;
 }
 
-async function loadOrder(orderId: string) {
-  const { data, error } = await getSupabase().from("orders").select("*").eq("id", orderId).eq("store_id", STORE_ID).eq("kind", "physical").maybeSingle();
+async function loadOrder(orderId: string, storeId: string) {
+  const { data, error } = await getSupabase().from("orders").select("*").eq("id", orderId).eq("store_id", storeId).eq("kind", "physical").maybeSingle();
   if (error) throw new Error("Could not load order");
   if (!data) throw new HttpError(404, "Order not found.");
   return data as Order;
@@ -103,8 +103,8 @@ async function loadOrder(orderId: string) {
  * it is still in that status. Tracking emails go out after the change is saved; if sending fails
  * the order stays updated and the owner can resend.
  */
-export async function applyFulfillment(orderId: string, expected: FulfillmentStatus, input: FulfillmentAction) {
-  const order = await loadOrder(orderId);
+export async function applyFulfillment(orderId: string, expected: FulfillmentStatus, input: FulfillmentAction, storeId = STORE_ID) {
+  const order = await loadOrder(orderId, storeId);
   const current = order.fulfillment_status ?? "needs_ordering";
   if (current !== expected) throw new HttpError(409, "This order changed in another tab. Reload to see its latest status.");
   if (!ALLOWED_FROM[input.action].includes(current)) {
@@ -143,7 +143,7 @@ export async function applyFulfillment(orderId: string, expected: FulfillmentSta
   let updated = order;
   if (Object.keys(changes).length) {
     const { data, error } = await getSupabase().from("orders").update(changes)
-      .eq("id", order.id).eq("store_id", STORE_ID).eq("kind", "physical").eq("fulfillment_status", current).select("*").maybeSingle();
+      .eq("id", order.id).eq("store_id", storeId).eq("kind", "physical").eq("fulfillment_status", current).select("*").maybeSingle();
     if (error) throw new Error("Could not update order");
     if (!data) throw new HttpError(409, "This order changed in another tab. Reload to see its latest status.");
     updated = data as Order;
@@ -161,7 +161,7 @@ export async function applyFulfillment(orderId: string, expected: FulfillmentSta
         : "Saved, but the tracking email could not be sent. Use “Resend tracking email” to try again.");
     }
     const { data, error } = await getSupabase().from("orders").update({ tracking_email_sent_at: new Date().toISOString() })
-      .eq("id", updated.id).eq("store_id", STORE_ID).select("*").maybeSingle();
+      .eq("id", updated.id).eq("store_id", storeId).select("*").maybeSingle();
     if (!error && data) updated = data as Order;
   }
   return updated;
