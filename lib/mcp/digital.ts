@@ -1,3 +1,4 @@
+import { productPath } from "../storefront-paths";
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { getSupabase } from "../supabase";
@@ -41,9 +42,9 @@ function toForm(product: CatalogProduct | null, id: string, fields: DigitalField
   return form;
 }
 
-async function loadDraft(id: unknown) {
+async function loadDraft(id: unknown, storeId: string) {
   if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(404, "That digital product wasn't found.");
-  const product = await getCatalogProduct(id);
+  const product = await getCatalogProduct(id, storeId);
   if (!product || product.kind !== "digital") throw new HttpError(404, "That digital product wasn't found.");
   if (product.status !== "draft") throw new HttpError(403, "This product is live. Assistants can only change drafts: edit it in the admin.");
   return product;
@@ -54,31 +55,31 @@ export function describeDigital(product: CatalogProduct) {
     id: product.id, name: product.name, slug: product.slug, status: product.status, tagline: product.tagline, description: product.description,
     includes: product.includes, price: product.price_amount, priceLabel: product.price_amount !== null ? formatMoney(product.price_amount, product.currency) : null,
     currency: product.currency, templatesUrl: product.templates_url, hasCover: !!product.cover_path, hasDownload: !!product.storage_path,
-    editUrl: `/admin/products/${product.id}`, previewUrl: `/p/${product.slug}`,
+    editUrl: `/admin/products/${product.id}`, previewUrl: productPath(product),
   };
 }
 
 /** A new draft. Optionally links the research idea it came from and moves that idea to Testing. */
-export async function createDigitalDraft(fields: DigitalFields, researchId?: string) {
+export async function createDigitalDraft(fields: DigitalFields, researchId?: string, storeId = STORE_ID) {
   if (!fields.name?.trim() || !fields.slug?.trim()) throw new HttpError(400, "Give the product a name and a URL slug.");
   const id = randomUUID();
-  const saved = await saveProduct(toForm(null, id, fields));
+  const saved = await saveProduct(toForm(null, id, fields), storeId);
   if (researchId) {
     await getSupabase().from("research_products").update({ store_product_id: saved.id, stage: "testing", updated_at: new Date().toISOString() })
-      .eq("store_id", STORE_ID).eq("id", researchId);
+      .eq("store_id", storeId).eq("id", researchId);
   }
   return describeDigital(saved);
 }
 
-export async function updateDigitalDraft(id: string, fields: DigitalFields) {
-  const product = await loadDraft(id);
-  return describeDigital(await saveProduct(toForm(product, product.id, fields)));
+export async function updateDigitalDraft(id: string, fields: DigitalFields, storeId = STORE_ID) {
+  const product = await loadDraft(id, storeId);
+  return describeDigital(await saveProduct(toForm(product, product.id, fields), storeId));
 }
 
 /** Attaches a cover image or the downloadable PDF/ZIP to a draft. */
-export async function attachDigitalFile(id: string, purpose: "cover" | "download", bytes: Uint8Array, filename: string) {
-  const product = await loadDraft(id);
+export async function attachDigitalFile(id: string, purpose: "cover" | "download", bytes: Uint8Array, filename: string, storeId = STORE_ID) {
+  const product = await loadDraft(id, storeId);
   const name = filename.replace(/[^\w.\- ]+/g, "").trim() || (purpose === "cover" ? "cover" : "download");
   const file = new File([bytes as BlobPart], name);
-  return describeDigital(await saveProduct(toForm(product, product.id, {}, purpose === "cover" ? { cover: file } : { download: file })));
+  return describeDigital(await saveProduct(toForm(product, product.id, {}, purpose === "cover" ? { cover: file } : { download: file }), storeId));
 }

@@ -16,7 +16,7 @@ describe("secure downloads", () => {
     expect(response.headers.get("location")).toBe("https://example.supabase.co/private-file?signature=example");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
-    expect(rpc).toHaveBeenCalledWith("consume_download", { p_token_hash: token.hash });
+    expect(rpc).toHaveBeenCalledWith("consume_workspace_download", { p_token_hash: token.hash });
     expect(supabase.storage.from).toHaveBeenCalledWith("products");
     expect(signUrl).toHaveBeenCalledWith("lead-to-kickoff/lead-to-kickoff.pdf", 60, { download: "Lead-to-Kickoff.pdf" });
     expect(state.orders[0].download_count).toBe(1);

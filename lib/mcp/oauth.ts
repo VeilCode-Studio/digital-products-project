@@ -207,15 +207,15 @@ export function redirectWith(redirectUri: string, values: Record<string, string 
 }
 
 /** The owner approved: one connection per app (reused on reconnect) and a single-use code for it. */
-export async function approveAuthorization(request: AuthorizeRequest, scopes: McpScope[]) {
+export async function approveAuthorization(request: AuthorizeRequest, scopes: McpScope[], storeId = STORE_ID) {
   const db = getSupabase();
-  const { data: existing } = await db.from("mcp_connections").select("*").eq("store_id", STORE_ID).eq("client_id", request.client.client_id).is("revoked_at", null).maybeSingle();
+  const { data: existing } = await db.from("mcp_connections").select("*").eq("store_id", storeId).eq("client_id", request.client.client_id).is("revoked_at", null).maybeSingle();
   let connection = existing as McpConnection | null;
   if (connection) {
     const { error } = await db.from("mcp_connections").update({ scopes, name: request.client.name }).eq("id", connection.id);
     if (error) throw new OAuthError("server_error", "Could not save the connection.", 500);
   } else {
-    const { data, error } = await db.from("mcp_connections").insert({ store_id: STORE_ID, kind: "oauth", name: request.client.name, client_id: request.client.client_id, scopes }).select("*").single();
+    const { data, error } = await db.from("mcp_connections").insert({ store_id: storeId, kind: "oauth", name: request.client.name, client_id: request.client.client_id, scopes }).select("*").single();
     if (error || !data) throw new OAuthError("server_error", "Could not save the connection.", 500);
     connection = data as McpConnection;
   }
@@ -370,11 +370,11 @@ export async function revokeToken(form: URLSearchParams) {
 
 // ── Personal tokens (Claude Code, Codex) ─────────────────────────────────────────────────────
 
-export async function createPersonalToken(name: string, scopes: McpScope[]) {
+export async function createPersonalToken(name: string, scopes: McpScope[], storeId = STORE_ID) {
   const label = name.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, 120);
   if (!label) throw new HttpError(400, "Give the token a name, like “Claude Code”.");
   const db = getSupabase();
-  const { data, error } = await db.from("mcp_connections").insert({ store_id: STORE_ID, kind: "token", name: label, scopes }).select("*").single();
+  const { data, error } = await db.from("mcp_connections").insert({ store_id: storeId, kind: "token", name: label, scopes }).select("*").single();
   if (error || !data) throw new HttpError(500, "Could not create the token. Please try again.");
   const token = newSecret("vcs_");
   const { error: secretError } = await db.from("mcp_secrets").insert({ hash: hashSecret(token), kind: "personal", connection_id: (data as McpConnection).id });
@@ -396,33 +396,33 @@ export async function verifyBearer(header: string | null): Promise<Caller | null
   if (!secret || (secret.kind !== "access" && secret.kind !== "personal")) return null;
   if (secret.expires_at && Date.parse(secret.expires_at) <= Date.now()) return null;
   const connection = await liveConnection(secret.connection_id);
-  if (!connection || connection.store_id !== STORE_ID) return null;
+  if (!connection || !connection.store_id) return null;
   if (!connection.last_used_at || Date.now() - Date.parse(connection.last_used_at) > LAST_USED_EVERY) {
     await db.from("mcp_connections").update({ last_used_at: new Date().toISOString() }).eq("id", connection.id);
   }
   return { connection, scopes: connection.scopes };
 }
 
-export async function listConnections() {
-  const { data, error } = await getSupabase().from("mcp_connections").select("*").eq("store_id", STORE_ID).order("created_at", { ascending: false }).limit(100);
+export async function listConnections(storeId = STORE_ID) {
+  const { data, error } = await getSupabase().from("mcp_connections").select("*").eq("store_id", storeId).order("created_at", { ascending: false }).limit(100);
   if (error) throw new Error("Could not load connections");
   return (data ?? []) as McpConnection[];
 }
 
 /** Switches a connection off and deletes every secret it holds. */
-export async function revokeConnection(id: unknown) {
+export async function revokeConnection(id: unknown, storeId = STORE_ID) {
   if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(400, "That connection wasn't found.");
   const db = getSupabase();
-  const { data, error } = await db.from("mcp_connections").update({ revoked_at: new Date().toISOString() }).eq("store_id", STORE_ID).eq("id", id).select("id").maybeSingle();
+  const { data, error } = await db.from("mcp_connections").update({ revoked_at: new Date().toISOString() }).eq("store_id", storeId).eq("id", id).select("id").maybeSingle();
   if (error) throw new HttpError(500, "Could not switch off that connection. Please try again.");
   if (!data) throw new HttpError(404, "That connection wasn't found.");
   await db.from("mcp_secrets").delete().eq("connection_id", id);
   return { id };
 }
 
-export async function updateConnectionScopes(id: unknown, scopes: McpScope[]) {
+export async function updateConnectionScopes(id: unknown, scopes: McpScope[], storeId = STORE_ID) {
   if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(400, "That connection wasn't found.");
-  const { data, error } = await getSupabase().from("mcp_connections").update({ scopes }).eq("store_id", STORE_ID).eq("id", id).is("revoked_at", null).select("*").maybeSingle();
+  const { data, error } = await getSupabase().from("mcp_connections").update({ scopes }).eq("store_id", storeId).eq("id", id).is("revoked_at", null).select("*").maybeSingle();
   if (error) throw new HttpError(500, "Could not save. Please try again.");
   if (!data) throw new HttpError(404, "That connection wasn't found, or it's switched off.");
   return data as McpConnection;

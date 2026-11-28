@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { STORE_ID } from "@/lib/store-config";
+import { storePath } from "@/lib/storefront-paths";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getStore, listProducts } from "@/lib/catalog";
@@ -18,22 +21,24 @@ export function legalMetadata(kind: LegalKind): Metadata {
   return { title: LEGAL_TITLES[kind], description: legalDocument(kind, SUPPORT_FALLBACK).intro };
 }
 
-export async function LegalPage({ kind }: { kind: LegalKind }) {
+export async function LegalPage({ kind, storeId = STORE_ID }: { kind: LegalKind; storeId?: string }) {
   // These pages must load even if the database doesn't (Meta and Stripe check them), so both reads fall back.
-  const [store, products] = await Promise.all([getStore().catch(() => null), listProducts(true, "digital").catch(() => [])]);
+  const [store, products] = await Promise.all([getStore(storeId).catch(() => null), listProducts(true, "digital", storeId).catch(() => [])]);
+  if (!store && storeId !== STORE_ID) notFound();
+  const base = storePath(storeId);
   const support = store?.support_email || SUPPORT_FALLBACK;
-  const doc = legalDocument(kind, support);
+  const doc = legalDocument(kind, support, store?.name);
   return (
     <div id={ROOT_ID} className={`vc ${monaSans.variable}`}>
       <PageEffects rootId={ROOT_ID} />
       <span className="vc-sentinel" data-top-sentinel aria-hidden="true" />
-      <SiteHeader base="/" cta={false} />
+      <SiteHeader base={`${base}/`} store={store ?? undefined} cta={false} />
       <main className="vc-wrap vc-legal">
-        <Link className="vc-back" href="/"><ArrowLeft size={16} aria-hidden="true" /> PodStore</Link>
+        <Link className="vc-back" href={base || "/"}><ArrowLeft size={16} aria-hidden="true" /> {store?.name ?? "PodStore"}</Link>
         <div className="vc-legal-grid">
           <nav className="vc-legal-nav" aria-label="Help and policies">
             {LEGAL_KINDS.map((other) => (
-              <Link key={other} href={`/${other}`} aria-current={other === kind ? "page" : undefined}>{LEGAL_TITLES[other]}</Link>
+              <Link key={other} href={`${base}/${other}`} aria-current={other === kind ? "page" : undefined}>{LEGAL_TITLES[other]}</Link>
             ))}
           </nav>
           <article className="vc-legal-doc">
@@ -49,7 +54,7 @@ export async function LegalPage({ kind }: { kind: LegalKind }) {
           </article>
         </div>
       </main>
-      <SiteFooter store={store ?? FALLBACK_STORE} products={products} support={support} base="/" />
+      <SiteFooter store={store ?? FALLBACK_STORE} products={products} support={support} base={`${base}/`} />
     </div>
   );
 }

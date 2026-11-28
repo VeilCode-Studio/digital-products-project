@@ -334,7 +334,7 @@ describe("with the official MCP client", () => {
     const client = new Client({ name: "test-client", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${ORIGIN}/api/mcp`), { fetch: fetchToRoute, requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
     expect(client.getServerVersion()).toMatchObject({ name: "podstore" });
-    expect(client.getInstructions()).toContain("PodStore");
+    expect(client.getInstructions()).toContain("Your connection grants access only to this workspace.");
     const { tools } = await client.listTools();
     expect(tools.find((tool) => tool.name === "list_orders")?.annotations).toMatchObject({ readOnlyHint: true });
     const result = await client.callTool({ name: "list_products", arguments: {} });

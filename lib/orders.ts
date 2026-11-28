@@ -126,7 +126,7 @@ export async function releaseDelivery(orderId: string, lockId: string) {
 }
 
 export async function consumeDownload(hash: string) {
-  const { data, error } = await getSupabase().rpc("consume_download", { p_token_hash: hash });
+  const { data, error } = await getSupabase().rpc("consume_workspace_download", { p_token_hash: hash });
   if (error) throw new Error("Could not consume download");
   return data?.[0] ?? null;
 }

@@ -1,3 +1,4 @@
+import { workspaceForUser } from "@/lib/workspace";
 import { ownerPage } from "@/lib/auth";
 import { listMarginRows, MARGIN_TARGET, summarize, type MarginRow } from "@/lib/margins";
 import { NavSection } from "@/components/admin-nav";
@@ -7,9 +8,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Margins" };
 
 export default async function MarginsPage() {
-  await ownerPage();
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
   let rows: MarginRow[] | null = null;
-  try { rows = await listMarginRows(); }
+  try { rows = await listMarginRows(undefined, storeId); }
   catch (error) { console.error("Margins unavailable", error instanceof Error ? error.message.slice(0, 200) : ""); }
   return <><NavSection href="/admin/margins" />
     <div className="admin-page-heading">

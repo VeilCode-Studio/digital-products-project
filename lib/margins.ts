@@ -55,13 +55,13 @@ export function checkDue(variant: Pick<CostVariant, "supplier_url" | "supplier_c
   return !variant.supplier_checked_at || now - Date.parse(variant.supplier_checked_at) >= CHECK_EVERY_DAYS * DAY;
 }
 
-export async function listMarginRows(now = Date.now()): Promise<MarginRow[]> {
+export async function listMarginRows(now = Date.now(), storeId = STORE_ID): Promise<MarginRow[]> {
   const db = getSupabase();
-  const { data: products, error } = await db.from("products").select("*").eq("store_id", STORE_ID).eq("kind", "physical").order("sort_order");
+  const { data: products, error } = await db.from("products").select("*").eq("store_id", storeId).eq("kind", "physical").order("sort_order");
   if (error) throw new HttpError(503, "Margins are temporarily unavailable.");
   const list = (products ?? []) as CatalogProduct[];
   if (!list.length) return [];
-  const { data: variants, error: variantError } = await db.from("product_variants").select("*").eq("store_id", STORE_ID).in("product_id", list.map((product) => product.id)).order("position");
+  const { data: variants, error: variantError } = await db.from("product_variants").select("*").eq("store_id", storeId).in("product_id", list.map((product) => product.id)).order("position");
   if (variantError) throw new HttpError(503, "Margins are temporarily unavailable.");
   const byProduct = new Map(list.map((product) => [product.id, product]));
   return ((variants ?? []) as CostVariant[]).filter((variant) => variant.active).flatMap((variant) => {
@@ -96,28 +96,28 @@ const money = (value: unknown, label: string) => {
   return Math.round(amount * 100);
 };
 
-async function ownVariant(id: unknown) {
+async function ownVariant(id: unknown, storeId: string) {
   if (typeof id !== "string") throw new HttpError(400, "Choose a variant.");
-  const { data, error } = await getSupabase().from("product_variants").select("*").eq("store_id", STORE_ID).eq("id", id).maybeSingle();
+  const { data, error } = await getSupabase().from("product_variants").select("*").eq("store_id", storeId).eq("id", id).maybeSingle();
   if (error) throw new HttpError(503, "Margins are temporarily unavailable.");
   if (!data) throw new HttpError(404, "That variant no longer exists.");
   return data as CostVariant;
 }
 
 /** The owner types in what a unit costs and what the supplier charges to ship it. */
-export async function saveVariantCost(body: Record<string, unknown>) {
-  const variant = await ownVariant(body.variantId);
+export async function saveVariantCost(body: Record<string, unknown>, storeId = STORE_ID) {
+  const variant = await ownVariant(body.variantId, storeId);
   const now = new Date().toISOString();
   const changes = { unit_cost: money(body.unitCost, "Unit cost"), supplier_shipping: money(body.supplierShipping, "Supplier shipping"), cost_source: "manual" as const, cost_updated_at: now, supplier_checked_at: now, supplier_alert: null };
-  const { error } = await getSupabase().from("product_variants").update(changes).eq("id", variant.id).eq("store_id", STORE_ID);
+  const { error } = await getSupabase().from("product_variants").update(changes).eq("id", variant.id).eq("store_id", storeId);
   if (error) throw new HttpError(500, "Could not save the cost.");
   return { ok: true };
 }
 
 /** "I checked the supplier and the price is unchanged." */
-export async function markChecked(body: Record<string, unknown>) {
-  const variant = await ownVariant(body.variantId);
-  const { error } = await getSupabase().from("product_variants").update({ supplier_checked_at: new Date().toISOString(), supplier_alert: null }).eq("id", variant.id).eq("store_id", STORE_ID);
+export async function markChecked(body: Record<string, unknown>, storeId = STORE_ID) {
+  const variant = await ownVariant(body.variantId, storeId);
+  const { error } = await getSupabase().from("product_variants").update({ supplier_checked_at: new Date().toISOString(), supplier_alert: null }).eq("id", variant.id).eq("store_id", storeId);
   if (error) throw new HttpError(500, "Could not save the check.");
   return { ok: true };
 }
@@ -146,7 +146,7 @@ export async function learnFromOrder(order: Order, supplierCost: number) {
     const rose = variant.unit_cost !== null && variant.unit_cost !== undefined && unitCost > variant.unit_cost * (1 + PRICE_RISE);
     const alert = rose ? `Last order cost ${(perUnit / 100).toFixed(2)} a unit, up from ${(((variant.unit_cost ?? 0) + (variant.supplier_shipping ?? 0)) / 100).toFixed(2)}.`
       : margin !== null && margin < MARGIN_TARGET ? `Margin is ${Math.round(margin * 100)}% at the last order's cost.` : null;
-    await db.from("product_variants").update({ unit_cost: unitCost, cost_source: "order" as const, cost_updated_at: now, supplier_checked_at: now, supplier_alert: alert }).eq("id", variant.id);
+    await db.from("product_variants").update({ unit_cost: unitCost, cost_source: "order" as const, cost_updated_at: now, supplier_checked_at: now, supplier_alert: alert }).eq("id", variant.id).eq("store_id", order.store_id).eq("product_id", item.productId);
   }
 }
 

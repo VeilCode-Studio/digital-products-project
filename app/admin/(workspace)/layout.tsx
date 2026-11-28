@@ -1,3 +1,4 @@
+import { storePath } from "@/lib/storefront-paths";
 import { ownerPage } from "@/lib/auth";
 import { getStore } from "@/lib/catalog";
 import { workspaceForUser } from "@/lib/workspace";
@@ -11,5 +12,5 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   const owner = await ownerPage();
   const { storeId } = await workspaceForUser(owner.id);
   const store = await getStore(storeId);
-  return <AdminShell owner={owner} storeName={store.name}>{children}</AdminShell>;
+  return <AdminShell owner={owner} storeName={store.name} storefrontHref={storePath(storeId) || "/"}>{children}</AdminShell>;
 }

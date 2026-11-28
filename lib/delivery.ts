@@ -22,7 +22,7 @@ export async function deliverOrder(input: {
     throw new DeliveryBusyError("Order delivery is already in progress");
   }
   try {
-    const product = await resolveDeliveryProduct(order.product_id, order.product_snapshot);
+    const product = await resolveDeliveryProduct(order.product_id, order.product_snapshot, order.store_id);
     if (!product) throw new Error("Order has an unknown product");
     await assertDownloadAvailable(product.storagePath, "The purchased file is missing from Storage. Restore the original file before resending this order.");
     // A concurrent worker may have rotated the token before we acquired the lock.
@@ -36,7 +36,7 @@ export async function deliverOrder(input: {
     }
     await sendDeliveryEmail({
       email: order.email, sessionId: order.stripe_session_id,
-      product, token: token.token, tokenHash: token.hash,
+      product, token: token.token, tokenHash: token.hash, storeId: order.store_id,
     });
     await markOrderSent(order.id, lockId, token.hash);
     return order.email;

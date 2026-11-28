@@ -15,13 +15,14 @@ import { getOrder, listCatalogue, listOrders, ORDER_FILTERS, researchBoard, stor
 import { addStoreMedia, editableStore, saveStoreDraft } from "./stores";
 import { attachDigitalFile, createDigitalDraft, describeDigital, updateDigitalDraft } from "./digital";
 import { appendUpload, decodeBase64, downloadFile, finishUpload, startUpload } from "./files";
+import { STORE_ID } from "../store-config";
 import type { Caller } from "./oauth";
 
 // The studio's MCP server (/api/mcp). One server for every assistant: Claude, ChatGPT, Codex and
 // Claude Code see the same tools. Each connection only gets the tools its scopes allow, and every call
 // is logged. Built fresh per request (stateless), so it scales like any other route.
 
-const INSTRUCTIONS = `PodStore is a one-person store selling digital products (guides, templates; pages at /p/<slug>) and physical dropshipped products, each with its own single-product store (/s/<slug>), mainly to US shoppers.
+const INSTRUCTIONS = `This workspace sells digital products (guides and templates) and physical products, each with its own product page. Use the page URLs returned by the tools: independent workspaces have a /shops/<store-id> namespace. Your connection grants access only to this workspace.
 
 Use these tools to report on the store, research products, and build drafts:
 - Performance and orders: get_store_overview, list_orders, get_order. Lists leave out customer names and addresses; get_order shows them for one order.
@@ -58,6 +59,7 @@ function summarise(args: Record<string, unknown>) {
 }
 
 export function buildMcpServer(caller: Caller) {
+  const storeId = caller.connection.store_id;
   const server = new McpServer({ name: "podstore", title: "PodStore", version: "1.0.0" }, { instructions: INSTRUCTIONS });
   const allowed = new Set<McpScope>(caller.scopes);
 
@@ -67,6 +69,7 @@ export function buildMcpServer(caller: Caller) {
     server.registerTool(name, { title: config.title, description: config.description, inputSchema: config.input, annotations: config.annotations, ...(config.meta ? { _meta: config.meta } : {}) },
       (async (args: z.infer<z.ZodObject<S>>) => {
         try {
+          if (storeId !== STORE_ID && ["search_meta_ads", "search_cj_products", "get_cj_product_costs"].includes(name)) throw new HttpError(503, "Supplier search is not configured for this workspace. Save research manually.");
           const data = await run(args);
           await logActivity(caller.connection.id, name, summarise(args as Record<string, unknown>), true);
           return ok(data);
@@ -84,7 +87,7 @@ export function buildMcpServer(caller: Caller) {
     title: "Store performance", annotations: read,
     description: "Sales (gross, refunded, net per currency), orders in the last 7 days, what needs attention (orders to place with suppliers, waiting to ship, unsent download emails), best sellers, catalogue and research counts.",
     input: { days: z.number().int().min(1).max(365).optional().describe("Period in days, default 30") },
-  }, ({ days }) => storeOverview(days ?? 30));
+  }, ({ days }) => storeOverview(days ?? 30, storeId));
 
   tool("read", "list_orders", {
     title: "List orders", annotations: read,
@@ -93,32 +96,32 @@ export function buildMcpServer(caller: Caller) {
       status: z.enum(ORDER_FILTERS).optional(), kind: z.enum(["digital", "physical"]).optional(),
       days: z.number().int().min(1).max(365).optional().describe("Default 30"), limit: z.number().int().min(1).max(50).optional().describe("Default 25"),
     },
-  }, ({ status, kind, days, limit }) => listOrders({ filter: status ?? "all", kind, days: days ?? 30, limit: limit ?? 25 }));
+  }, ({ status, kind, days, limit }) => listOrders({ filter: status ?? "all", kind, days: days ?? 30, limit: limit ?? 25 }, storeId));
 
   tool("read", "get_order", {
     title: "Order details", annotations: read,
     description: "One order in full, including the customer's name, email and shipping address, items, supplier and tracking. Use only when the owner asks about a specific order.",
     input: { reference: z.string().describe("Order reference from the confirmation email (8 characters)") },
-  }, ({ reference }) => getOrder(reference));
+  }, ({ reference }) => getOrder(reference, storeId));
 
   tool("read", "list_products", {
     title: "List products", annotations: read,
     description: "Every digital product and physical store, with status (draft or published), price, and page URL.",
     input: { kind: z.enum(["digital", "physical"]).optional() },
-  }, ({ kind }) => listCatalogue(kind));
+  }, ({ kind }) => listCatalogue(kind, storeId));
 
   tool("read", "get_store", {
     title: "Get a store", annotations: read,
     description: "A physical product store as an editable document (page sections, variants, shipping, policies), its media, and a guide to every field. Edit it and send it back with save_store_draft.",
     input: { product_id: z.string().describe("The store's product id, from list_products or create_store") },
-  }, ({ product_id }) => editableStore(product_id));
+  }, ({ product_id }) => editableStore(product_id, storeId));
 
   tool("read", "get_digital_product", {
     title: "Get a digital product", annotations: read,
     description: "A digital product's details: description, what's included, price, and whether it has a cover and download file.",
     input: { product_id: z.string() },
   }, async ({ product_id }) => {
-    const product = /^[0-9a-f-]{36}$|^lead-to-kickoff$/i.test(product_id) ? await getCatalogProduct(product_id) : null;
+    const product = /^[0-9a-f-]{36}$|^lead-to-kickoff$/i.test(product_id) ? await getCatalogProduct(product_id, storeId) : null;
     if (!product || product.kind !== "digital") throw new HttpError(404, "That digital product wasn't found.");
     return describeDigital(product);
   });
@@ -127,14 +130,14 @@ export function buildMcpServer(caller: Caller) {
     title: "Research board", annotations: read,
     description: "Product ideas on the research board, with stage, ad evidence, supplier costs, price, profit per sale and any store made from them.",
     input: { stage: z.enum(STAGES).optional() },
-  }, ({ stage }) => researchBoard(stage));
+  }, ({ stage }) => researchBoard(stage, storeId));
 
   tool("read", "get_research_idea", {
     title: "Research idea", annotations: read,
     description: "One research idea in full: notes, every saved ad, supplier details and numbers.",
     input: { id: z.string() },
   }, async ({ id }) => {
-    const idea = (await listResearch()).find((entry) => entry.id === id);
+    const idea = (await listResearch(storeId)).find((entry) => entry.id === id);
     if (!idea) throw new HttpError(404, "That research idea wasn't found.");
     return idea;
   });
@@ -171,7 +174,7 @@ export function buildMcpServer(caller: Caller) {
       supplier: supplierSchema.optional(), ads: z.array(adSchema).max(20).optional(), stage: z.enum(STAGES).optional(),
     },
   }, async ({ target_price_cents, ads, ...rest }) => ({
-    idea: await createResearch({ ...rest, ...(target_price_cents !== undefined ? { target_price: target_price_cents } : {}), ...(ads ? { ads: ads.map((ad) => ({ ...ad, source: "manual" })) } : {}) }),
+    idea: await createResearch({ ...rest, ...(target_price_cents !== undefined ? { target_price: target_price_cents } : {}), ...(ads ? { ads: ads.map((ad) => ({ ...ad, source: "manual" })) } : {}) }, storeId),
   }));
 
   tool("research", "update_research_idea", {
@@ -183,7 +186,7 @@ export function buildMcpServer(caller: Caller) {
       supplier: supplierSchema.nullable().optional(), ads: z.array(adSchema).max(20).optional(),
     },
   }, async ({ target_price_cents, ads, ...rest }) => ({
-    idea: await updateResearch({ ...rest, ...(target_price_cents !== undefined ? { target_price: target_price_cents } : {}), ...(ads ? { ads: ads.map((ad) => ({ ...ad, source: "manual" })) } : {}) }),
+    idea: await updateResearch({ ...rest, ...(target_price_cents !== undefined ? { target_price: target_price_cents } : {}), ...(ads ? { ads: ads.map((ad) => ({ ...ad, source: "manual" })) } : {}) }, storeId),
   }));
 
   // ── Build (drafts only) ───────────────────────────────────────────────────────────────────
@@ -197,8 +200,8 @@ export function buildMcpServer(caller: Caller) {
     },
   }, async ({ slug, research_idea_id, name, theme }) => {
     const { productId } = research_idea_id
-      ? await createStoreFromResearch({ id: research_idea_id, slug, theme })
-      : await createStore({ name, slug, theme }).then(({ id }) => ({ productId: id }));
+      ? await createStoreFromResearch({ id: research_idea_id, slug, theme }, storeId)
+      : await createStore({ name, slug, theme }, storeId).then(({ id }) => ({ productId: id }));
     return { productId, next: "Call get_store with this productId, fill in the page, variants, shipping and policies, then save_store_draft." };
   });
 
@@ -206,7 +209,7 @@ export function buildMcpServer(caller: Caller) {
     title: "Save a draft store", annotations: write,
     description: "Saves a store document (from get_store, edited) as a draft. Send the whole document with the revision you received. Only draft stores can be changed.",
     input: { document: z.record(z.string(), z.unknown()).describe("The full document from get_store, edited") },
-  }, ({ document }) => saveStoreDraft(document));
+  }, ({ document }) => saveStoreDraft(document, storeId));
 
   tool("build", "create_digital_product_draft", {
     title: "Create a digital product draft", annotations: write,
@@ -217,7 +220,7 @@ export function buildMcpServer(caller: Caller) {
       price_cents: z.number().int().min(50), currency: z.string().optional().describe("usd (default), gbp, eur, cad, aud"),
       research_idea_id: z.string().optional(),
     },
-  }, ({ price_cents, research_idea_id, ...fields }) => createDigitalDraft({ ...fields, price: price_cents }, research_idea_id));
+  }, ({ price_cents, research_idea_id, ...fields }) => createDigitalDraft({ ...fields, price: price_cents }, research_idea_id, storeId));
 
   tool("build", "update_digital_product_draft", {
     title: "Update a digital product draft", annotations: write,
@@ -227,7 +230,7 @@ export function buildMcpServer(caller: Caller) {
       description: z.string().max(10000).optional(), includes: z.array(z.string().max(200)).max(12).optional(),
       price_cents: z.number().int().min(50).optional(), currency: z.string().optional(),
     },
-  }, ({ product_id, price_cents, ...fields }) => updateDigitalDraft(product_id, { ...fields, ...(price_cents !== undefined ? { price: price_cents } : {}) }));
+  }, ({ product_id, price_cents, ...fields }) => updateDigitalDraft(product_id, { ...fields, ...(price_cents !== undefined ? { price: price_cents } : {}) }, storeId));
 
   tool("build", "import_file", {
     title: "Add an image or file", annotations: write,
@@ -253,7 +256,7 @@ export function buildMcpServer(caller: Caller) {
       const downloaded = await downloadFile((url ?? file!.download_url)!);
       bytes = downloaded.bytes; name = downloaded.name;
     }
-    return purpose === "store_media" ? addStoreMedia(product_id, bytes) : attachDigitalFile(product_id, purpose, bytes, name);
+    return purpose === "store_media" ? addStoreMedia(product_id, bytes, storeId) : attachDigitalFile(product_id, purpose, bytes, name, storeId);
   });
 
   tool("build", "start_file_upload", {
@@ -261,7 +264,7 @@ export function buildMcpServer(caller: Caller) {
     description: "For sending a file's bytes in pieces when there's no public link: start here, send base64 pieces in order with upload_file_part, then call import_file with the upload_id.",
     input: { product_id: z.string(), filename: z.string().max(255), size_bytes: z.number().int().min(1).max(25 * 1024 * 1024) },
   }, async ({ product_id, filename, size_bytes }) => {
-    const product = await getCatalogProduct(product_id);
+    const product = await getCatalogProduct(product_id, storeId);
     if (!product) throw new HttpError(404, "That product wasn't found.");
     return startUpload(caller.connection.id, product.id, filename, size_bytes);
   });

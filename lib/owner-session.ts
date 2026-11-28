@@ -1,7 +1,7 @@
 import "server-only";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { authClient, getOwnerId, OWNER_COOKIE } from "./auth";
+import { authClient, allowedWorkspaceUser, OWNER_COOKIE } from "./auth";
 import { getEnv } from "./env";
 
 /** Long-lived and HTTP-only: it only ever buys a fresh hour-long access token for the owner. */
@@ -41,7 +41,7 @@ export async function renewOwnerSession(request: NextRequest) {
   if (!refreshToken || secondsLeft(request.cookies.get(OWNER_COOKIE)?.value) > RENEW_WITHIN_SECONDS) return NextResponse.next();
   try {
     const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken });
-    if (error || !data.session || data.user?.id !== getOwnerId()) {
+    if (error || !data.session || !allowedWorkspaceUser(data.user)) {
       const response = NextResponse.next();
       // A refused token is gone for good; a network or server hiccup keeps it for the next request.
       if (!error || (error.status ?? 500) < 500) response.cookies.delete(OWNER_REFRESH_COOKIE);

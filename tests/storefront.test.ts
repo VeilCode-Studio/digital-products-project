@@ -152,7 +152,7 @@ describe("application-managed catalog", () => {
   });
   it("keeps foreign-store products out of the catalog", async () => {
     const product = seedProduct({ store_id: randomUUID() });
-    await expect(startCheckout(product.id, randomUUID())).rejects.toMatchObject({ status: 404 });
+    await expect(startCheckout(product.id, randomUUID())).rejects.toMatchObject({ status: 503 });
     expect(sessionsCreate).not.toHaveBeenCalled();
   });
 });

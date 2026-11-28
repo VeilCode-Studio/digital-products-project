@@ -1,4 +1,5 @@
 "use client";
+import { productPath } from "@/lib/storefront-paths";
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -186,8 +187,8 @@ export function ResearchDrawer({ item, onClose, onSaved, onDeleted, cj }: {
             <p>This idea has a {item.store.status === "published" ? "live" : "draft"} {item.store.kind === "digital" ? "digital product" : "store"}.</p>
             <Link className="button primary" href={item.store.kind === "digital" ? `/admin/products/${item.store_product_id}` : `/admin/products/${item.store_product_id}#product`}>Open the editor <ArrowRight size={16} /></Link>
             {item.store.kind === "digital"
-              ? item.store.status === "published" && <a className="quiet-link" href={`/p/${item.store.slug}`} target="_blank" rel="noopener noreferrer">View the page <ArrowUpRight size={13} /></a>
-              : <a className="quiet-link" href={`/s/${item.store.slug}${item.store.status === "published" ? "" : "?preview=1"}`} target="_blank" rel="noopener noreferrer">View the page <ArrowUpRight size={13} /></a>}
+              ? item.store.status === "published" && <a className="quiet-link" href={productPath({ ...item.store, kind: "digital" })} target="_blank" rel="noopener noreferrer">View the page <ArrowUpRight size={13} /></a>
+              : <a className="quiet-link" href={`${productPath({ ...item.store, kind: "physical" })}${item.store.status === "published" ? "" : "?preview=1"}`} target="_blank" rel="noopener noreferrer">View the page <ArrowUpRight size={13} /></a>}
           </div> : <>
             <p className="field-help">{digital
               ? "Creates a draft digital product named after this idea, at your price (or $19 if none), and opens it in the editor to add the file and cover. Nothing goes live until you publish."

@@ -1,4 +1,6 @@
 import "server-only";
+import { currentStripeConnection } from "./payment-connections";
+import { listProducts } from "./catalog";
 import { getSupabase } from "./supabase";
 import { STORE_ID } from "./store-config";
 import { getDeployment } from "./env";
@@ -20,9 +22,17 @@ export type LiveCheck = {
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-export async function liveChecks(): Promise<{ production: boolean; checks: LiveCheck[] }> {
+export async function liveChecks(storeId = STORE_ID): Promise<{ production: boolean; checks: LiveCheck[] }> {
   const production = getDeployment().production;
   const checks: LiveCheck[] = [];
+  if (storeId !== STORE_ID) {
+    const [payment, products] = await Promise.all([currentStripeConnection(storeId), listProducts(false, undefined, storeId)]);
+    return { production, checks: [
+      { id: "payments", status: payment?.status === "connected" ? "done" : "todo", title: "Connect your Stripe account", detail: "Your own payment account receives customer payments.", link: { href: "/admin/settings", label: "Payment settings" } },
+      { id: "catalog", status: products.some(p => p.status === "published") ? "done" : "todo", title: "Publish your first product", detail: "Prepare the product, files or shipping policies, then publish it.", link: { href: "/admin/products", label: "Products" } },
+      { id: "fulfillment", status: "done", title: "Manual supplier fulfilment", detail: "Physical orders can be managed under Fulfilment. Platform supplier accounts are not shared.", link: { href: "/admin/fulfillment", label: "Fulfilment" } },
+    ] };
+  }
   const cj = cjConfigured();
   const db = getSupabase();
 

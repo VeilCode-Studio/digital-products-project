@@ -25,7 +25,7 @@ export type ResearchProduct = {
   store_product_id: string | null; created_at: string; updated_at: string;
 };
 /** `store` is what was made from the idea: a physical store (/s/) or a digital product (/p/). */
-export type ResearchCard = ResearchProduct & { store: { slug: string; status: string; kind: "digital" | "physical" } | null };
+export type ResearchCard = ResearchProduct & { store: { store_id?: string; slug: string; status: string; kind: "digital" | "physical" } | null };
 
 /** A Meta Ad Library result, already summarised for the board. */
 export type MetaAd = {

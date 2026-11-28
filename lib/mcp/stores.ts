@@ -1,3 +1,5 @@
+import { STORE_ID } from "../store-config";
+import { productPath } from "../storefront-paths";
 import "server-only";
 import { HttpError } from "../http";
 import { getCatalogProduct } from "../catalog";
@@ -9,17 +11,17 @@ import { ICONS } from "../store-page";
 // document, changes it, and saves it back through the editor's own saveStore, so every rule the editor
 // enforces still applies. Only drafts can be changed; publishing stays with the owner in the admin.
 
-async function draftStore(id: unknown) {
+async function draftStore(id: unknown, storeId: string) {
   if (typeof id !== "string" || !/^[a-z0-9][a-z0-9-]{0,99}$/.test(id)) throw new HttpError(404, "That store doesn't exist.");
-  const product = await getCatalogProduct(id);
+  const product = await getCatalogProduct(id, storeId);
   if (!product || product.kind !== "physical") throw new HttpError(404, "That store doesn't exist.");
   return product;
 }
 
 /** The store as the document save_store_draft expects back, plus its media and how to use it. */
-export async function editableStore(id: string) {
-  await draftStore(id);
-  const data = await loadStoreEditor(id);
+export async function editableStore(id: string, storeId = STORE_ID) {
+  await draftStore(id, storeId);
+  const data = await loadStoreEditor(id, storeId);
   return {
     document: {
       id: data.product.id, revision: data.product.revision, name: data.product.name, slug: data.product.slug, tagline: data.product.tagline,
@@ -31,23 +33,23 @@ export async function editableStore(id: string) {
     pageProblem: data.pageProblem,
     media: data.media.map((file) => ({ path: file.path, kind: file.kind, url: data.mediaBase + file.path })),
     editorUrl: `/admin/products/${data.product.id}#product`,
-    previewUrl: `/s/${data.product.slug}${data.product.status === "draft" ? "?preview=1" : ""}`,
+    previewUrl: `${productPath({ store_id: storeId, kind: "physical", slug: data.product.slug })}${data.product.status === "draft" ? "?preview=1" : ""}`,
     guide: STORE_GUIDE,
   };
 }
 
 /** Saves the whole document as a draft. Refuses live stores. */
-export async function saveStoreDraft(document: Record<string, unknown>) {
-  const product = await draftStore(document.id);
+export async function saveStoreDraft(document: Record<string, unknown>, storeId = STORE_ID) {
+  const product = await draftStore(document.id, storeId);
   if (product.status !== "draft") throw new HttpError(403, "This store is live. Assistants can only change draft stores: edit it in the admin.");
-  const result = await saveStore({ ...document, status: "draft" });
-  return { revision: result.revision, slug: result.slug, status: result.status, previewUrl: `/s/${result.slug}?preview=1`, editorUrl: `/admin/products/${product.id}#product` };
+  const result = await saveStore({ ...document, status: "draft" }, storeId);
+  return { revision: result.revision, slug: result.slug, status: result.status, previewUrl: `${productPath({ ...product, slug: result.slug })}?preview=1`, editorUrl: `/admin/products/${product.id}#product` };
 }
 
-export async function addStoreMedia(productId: string, bytes: Uint8Array) {
-  const product = await draftStore(productId);
+export async function addStoreMedia(productId: string, bytes: Uint8Array, storeId = STORE_ID) {
+  const product = await draftStore(productId, storeId);
   if (product.status !== "draft") throw new HttpError(403, "This store is live. Add media to it in the admin.");
-  const file = await importStoreMediaBytes(product.id, bytes);
+  const file = await importStoreMediaBytes(product.id, bytes, storeId);
   return { path: file.path, kind: file.kind, url: file.url, use: `Put {"path":"${file.path}","kind":"${file.kind}","alt":"…","poster":null} in a section's media, or the path in a variant's image_path or brand.logoPath, then save the draft.` };
 }
 

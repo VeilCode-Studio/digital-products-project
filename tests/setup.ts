@@ -27,6 +27,7 @@ vi.mock("resend", async () => {
 // next/font only works inside the Next compiler, so pages that load a font get a stand-in class name.
 vi.mock("next/font/google", () => ({
   Mona_Sans: () => ({ className: "font-mona", variable: "font-mona", style: { fontFamily: "Mona Sans" } }),
+  ...Object.fromEntries(["Inter", "Space_Grotesk", "Fraunces", "Bricolage_Grotesque", "Manrope", "Plus_Jakarta_Sans"].map(name => [name, () => ({ className: name, variable: name, style: { fontFamily: name } })])),
 }));
 
 beforeEach(() => {
@@ -50,6 +51,8 @@ beforeEach(() => {
   vi.stubEnv("L2K_TEMPLATES_URL", "https://drive.google.com/drive/folders/templates");
   vi.stubEnv("ADMIN_SECRET", "a-long-test-admin-secret");
   vi.stubEnv("OWNER_USER_ID", "975ac870-5ab8-43a5-9d70-c051c42fc61f");
+  vi.stubEnv("WORKSPACE_ONBOARDING_ENABLED", "false");
+  vi.stubEnv("WORKSPACE_ONBOARDING_PRODUCTION_ENABLED", "false");
   vi.stubEnv("STRIPE_CONNECT_ENABLED", "false");
   vi.stubEnv("STRIPE_CONNECT_CLIENT_ID", "ca_testApplication");
   vi.stubEnv("STRIPE_CONNECT_WEBHOOK_SECRET", "whsec_connected");

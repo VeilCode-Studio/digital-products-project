@@ -1,4 +1,7 @@
 import "server-only";
+import { getStore } from "./catalog";
+import { STORE_ID } from "./store-config";
+import { senderName } from "./physical-email";
 import { Resend } from "resend";
 import { getDeployment, getEnv } from "./env";
 import { emailAllowed } from "./deployment-rules";
@@ -11,7 +14,7 @@ function escapeHtml(value: string) {
   })[character]!);
 }
 
-export function buildDeliveryEmail(product: Product, token: string) {
+export function buildDeliveryEmail(product: Product, token: string, seller?: string) {
   const url = new URL("/api/download", getEnv().APP_URL);
   url.searchParams.set("token", token);
   const downloadUrl = url.toString();
@@ -31,7 +34,7 @@ export function buildDeliveryEmail(product: Product, token: string) {
 <p>${limit}</p>
 ${resourcesHtml}
 <p>Questions or problems? Just reply to this email.</p>
-<p>Frank<br>PodStore</p>
+<p>${seller ? escapeHtml(seller) : "Frank<br>PodStore"}</p>
 </div>`,
     text: `Thanks for buying ${product.shortName}.
 
@@ -41,13 +44,12 @@ ${limit}${resourcesText}
 
 Questions or problems? Just reply to this email.
 
-Frank
-PodStore`,
+${seller || "Frank\nPodStore"}`,
   };
 }
 
 export async function sendDeliveryEmail(input: {
-  email: string; sessionId: string; product: Product; token: string; tokenHash: string;
+  email: string; sessionId: string; product: Product; token: string; tokenHash: string; storeId?: string;
 }) {
   const env = getEnv();
   const deployment = getDeployment();
@@ -56,11 +58,12 @@ export async function sendDeliveryEmail(input: {
     console.warn("Non-production email blocked: recipient is not on EMAIL_ALLOWLIST", { sessionId: input.sessionId });
     throw new Error("Recipient is not allowed outside production");
   }
-  const message = buildDeliveryEmail(input.product, input.token);
+  const store = input.storeId && input.storeId !== STORE_ID ? await getStore(input.storeId) : null;
+  const message = buildDeliveryEmail(input.product, input.token, store?.name);
   const resend = new Resend(env.RESEND_API_KEY);
   const { data, error } = await resend.emails.send({
-    from: "PodStore <orders@mail.veilcode.studio>",
-    replyTo: "support@veilcode.studio",
+    from: `${store ? senderName(store.name) : "PodStore"} <orders@mail.veilcode.studio>`,
+    replyTo: store?.support_email || "support@veilcode.studio",
     to: input.email,
     ...message,
     subject: deployment.production ? message.subject : `[${deployment.env === "preview" ? "Preview" : "Dev"}] ${message.subject}`,

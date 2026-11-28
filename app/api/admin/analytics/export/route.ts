@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
 import { apiError } from "@/lib/http";
 import { csvCell } from "@/lib/csv";
 import { parseFilters } from "@/lib/analytics";
@@ -8,9 +8,9 @@ export const runtime = "nodejs";
 /** The analytics report as a spreadsheet: the trend, then the top products, for the same filters. */
 export async function GET(req: Request) {
   try {
-    await requireOwner();
+    const { storeId } = await requireWorkspace();
     const filters = parseFilters(Object.fromEntries(new URL(req.url).searchParams));
-    const data = await loadAnalytics(filters);
+    const data = await loadAnalytics(filters, storeId);
     const major = (amount: number) => (amount / 100).toFixed(2);
     const rows: (string | number)[][] = [
       [`PodStore analytics ${filters.from} to ${filters.to}`, `Type: ${filters.kind}`, `Currency: ${data.currency.toUpperCase()}`], [],

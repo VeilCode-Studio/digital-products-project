@@ -4,8 +4,7 @@ import { getStripe } from "./stripe";
 import { getEnv } from "./env";
 import { HttpError } from "./http";
 import { checkoutDestination } from "./domains";
-import { STORE_ID } from "./store-config";
-import { getCatalogProduct } from "./catalog";
+import { getPublishedProductById } from "./catalog";
 import { bindCheckoutSession, findCheckout } from "./checkout";
 import { paymentContext, stripeOptions } from "./payment-connections";
 import { parseBrand, statementSuffix } from "./store-themes";
@@ -32,16 +31,16 @@ export type PhysicalCheckoutRequest = {
 
 export { statementSuffix };
 
-async function loadVariant(productId: string, variantId: string) {
+async function loadVariant(productId: string, variantId: string, storeId: string) {
   const { data, error } = await getSupabase().from("product_variants").select("*")
-    .eq("store_id", STORE_ID).eq("product_id", productId).eq("id", variantId).eq("active", true).maybeSingle();
+    .eq("store_id", storeId).eq("product_id", productId).eq("id", variantId).eq("active", true).maybeSingle();
   if (error) throw new Error("Could not load variant");
   return data as ProductVariant | null;
 }
 
-async function loadRates(profileId: string) {
+async function loadRates(profileId: string, storeId: string) {
   const { data, error } = await getSupabase().from("shipping_rates").select("*")
-    .eq("store_id", STORE_ID).eq("profile_id", profileId).eq("market", "US").eq("active", true).order("position");
+    .eq("store_id", storeId).eq("profile_id", profileId).eq("market", "US").eq("active", true).order("position");
   if (error) throw new Error("Could not load shipping rates");
   return ((data ?? []) as ShippingRate[]).filter((rate) => rate.currency === "usd").slice(0, MAX_SHIPPING_OPTIONS);
 }
@@ -53,11 +52,14 @@ function sameRequest(checkout: Checkout, input: PhysicalCheckoutRequest, connect
 
 export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
   if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > MAX_QUANTITY) throw new HttpError(400, `Choose a quantity from 1 to ${MAX_QUANTITY}.`);
+  const product = await getPublishedProductById(input.productId);
+  if (!product || product.kind !== "physical") throw new HttpError(404, "This product is not available.");
+  const storeId = product.store_id;
   const stripe = getStripe();
-  const context = await paymentContext();
+  const context = await paymentContext(storeId);
   const options = stripeOptions(context);
 
-  let checkout = await findCheckout(input.checkoutId);
+  let checkout = await findCheckout(input.checkoutId, storeId);
   if (checkout && !sameRequest(checkout, input, context.connectionId)) throw new HttpError(409, "Your selection changed. Please press Buy again.");
   if (checkout?.stripe_session_id) {
     const existing = await stripe.checkout.sessions.retrieve(checkout.stripe_session_id, {}, options);
@@ -65,7 +67,6 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     return existing.url;
   }
 
-  const product = await getCatalogProduct(input.productId);
   if (!product || product.kind !== "physical" || product.status !== "published" || !product.page || !product.shipping_profile_id || product.currency !== "usd") {
     throw new HttpError(404, "This product is not available.");
   }
@@ -83,7 +84,7 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     } catch {
       throw new HttpError(503, "This store is being updated. Please try again shortly.");
     }
-    const [variant, rates] = await Promise.all([loadVariant(product.id, input.variantId), loadRates(product.shipping_profile_id)]);
+    const [variant, rates] = await Promise.all([loadVariant(product.id, input.variantId, storeId), loadRates(product.shipping_profile_id, storeId)]);
     if (!variant) throw new HttpError(409, "That option is no longer available. Please reload the page.");
     if (!rates.length) throw new HttpError(503, "Shipping is temporarily unavailable for this product.");
     // A store takes payments only once it is complete, policies included.
@@ -94,7 +95,7 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     }
 
     const { data: siblings, error: siblingError } = await getSupabase().from("product_variants").select("options")
-      .eq("store_id", STORE_ID).eq("product_id", product.id).eq("active", true);
+      .eq("store_id", storeId).eq("product_id", product.id).eq("active", true);
     if (siblingError) throw new Error("Could not load variants");
     const order = publicOptions((siblings ?? []) as Pick<ProductVariant, "options">[]).map((option) => option.name);
 
@@ -115,7 +116,7 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
       processingDays: parseStorePolicies(product.policies).processingDays,
     };
     const reservation = {
-      id: input.checkoutId, store_id: STORE_ID, product_id: product.id, product_slug: product.slug, kind: "physical" as const,
+      id: input.checkoutId, store_id: storeId, product_id: product.id, product_slug: product.slug, kind: "physical" as const,
       variant_id: variant.id, quantity: input.quantity, physical_snapshot: snapshot,
       amount: unitAmount * input.quantity, currency: product.currency,
       stripe_price_id: null, product_snapshot: null, stripe_session_id: null,
@@ -126,7 +127,7 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     };
     const { data, error } = await getSupabase().from("checkouts").insert(reservation).select("*").single();
     if (error && error.code !== "23505") throw new Error("Could not reserve checkout");
-    checkout = (data as Checkout | null) ?? await findCheckout(input.checkoutId);
+    checkout = (data as Checkout | null) ?? await findCheckout(input.checkoutId, storeId);
     if (!checkout || !sameRequest(checkout, input, context.connectionId)) throw new HttpError(409, "Please press Buy again.");
   }
 
@@ -175,13 +176,13 @@ export async function startPhysicalCheckout(input: PhysicalCheckoutRequest) {
     // Shoppers can type a discount code (lib/discount-codes.ts); Stripe checks it is live and has uses left.
     allow_promotion_codes: true,
     client_reference_id: checkout.id,
-    metadata: { app: "veilcode-store", kind: "physical", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
+    metadata: { app: "veilcode-store", kind: "physical", checkout_id: checkout.id, product_id: checkout.product_id, store_id: storeId },
     // The reference lets the thank-you page report this purchase to the store's ad pixel.
     success_url: new URL(`${destination.base}/thank-you?ref=${checkout.id}`, appUrl).toString(),
     cancel_url: new URL(`${destination.base}?checkout=cancelled`, appUrl).toString(),
     integration_identifier: `veilcode-store-${tag}`,
   }, { ...options, idempotencyKey: `checkout-${checkout.id}` });
   if (!session.url) throw new Error("Stripe checkout URL missing");
-  await bindCheckoutSession(checkout.id, session.id);
+  await bindCheckoutSession(checkout.id, session.id, storeId);
   return session.url;
 }

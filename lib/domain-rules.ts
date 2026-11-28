@@ -1,4 +1,5 @@
 import { domainToASCII } from "node:url";
+import { productPath, storePath } from "./storefront-paths";
 
 /** Accept hostnames only: never paths, credentials, IPs, ports or local names. */
 export function normalizeDomain(input: unknown): string | null {
@@ -28,18 +29,16 @@ export function domainTestPaymentsEnabled(vars: Record<string, string | undefine
     /^(sk|rk)_test_/.test(vars.STRIPE_SECRET_KEY ?? "");
 }
 
-export function storefrontPath(product: { kind?: string; slug: string }) {
-  return `/${product.kind === "physical" ? "s" : "p"}/${encodeURIComponent(product.slug)}`;
-}
+export const storefrontPath = productPath;
 
 /** Public paths allowed on a product domain; management and other products stay on the platform. */
-export function domainPath(path: string, product: { id?: string; kind?: string; slug: string }): string | null {
+export function domainPath(path: string, product: { id?: string; store_id?: string; kind?: string; slug: string }): string | null {
   const base = storefrontPath(product);
   if (path === "/") return base;
   if (path === base || path.startsWith(`${base}/`)) return path;
   if (product.kind === "physical" && (/^\/policies\/(privacy|terms|shipping|returns|contact)$/.test(path) || ["/thank-you", "/cancel"].includes(path))) return base + path;
-  if (product.kind !== "physical" && ["/thank-you", "/privacy", "/terms", "/refunds", "/support", "/data-deletion"].includes(path)) return path;
-  if (["/api/checkout", "/api/checkout/physical", "/api/subscribe"].includes(path)) return path;
+  if (product.kind !== "physical" && ["/thank-you", "/privacy", "/terms", "/refunds", "/support", "/data-deletion"].includes(path)) return storePath(product.store_id) + path;
+  if (["/api/checkout", "/api/checkout/physical", "/api/subscribe"].includes(path) || product.kind === "physical" && path === "/api/orders/cancel") return path;
   if (product.id && path.startsWith(`/api/products/${encodeURIComponent(product.id)}/`)) return path;
   return null;
 }

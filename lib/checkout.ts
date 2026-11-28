@@ -1,6 +1,7 @@
 import "server-only";
 import { getSupabase } from "./supabase";
-import { getCatalogProduct, snapshotProduct } from "./catalog";
+import { getPublishedProductById, snapshotProduct } from "./catalog";
+import { storePath } from "./storefront-paths";
 import { getStripe } from "./stripe";
 import { getEnv } from "./env";
 import { HttpError } from "./http";
@@ -25,14 +26,16 @@ export async function bindCheckoutSession(id: string, sessionId: string, storeId
 }
 /** `linkSlug` is the short link the shopper arrived through (lib/short-links.ts), when there was one. */
 export async function startCheckout(productId: string, checkoutId: string, linkSlug: string | null = null) {
+  const product = await getPublishedProductById(productId);
+  if (!product || product.kind !== "digital") throw new HttpError(404, "This product is not available.");
+  const storeId = product.store_id;
   const stripe = getStripe();
-  const context = await paymentContext();
+  const context = await paymentContext(storeId);
   const options = stripeOptions(context);
-  let checkout = await findCheckout(checkoutId);
+  let checkout = await findCheckout(checkoutId, storeId);
   if (checkout && checkout.product_id !== productId) throw new HttpError(409, "Start a new checkout for this product.");
   if (checkout && ((checkout.kind ?? "digital") !== "digital" || !checkout.product_snapshot || !checkout.stripe_price_id)) throw new HttpError(409, "Start a new checkout for this product.");
   if (checkout && (checkout.payment_connection_id ?? null) !== context.connectionId) throw new HttpError(409, "The store's payment account changed. Reload to start a new checkout.");
-  const product = await getCatalogProduct(productId);
   // Physical products check out through lib/physical-checkout.ts, never this digital path.
   if (!product || (product.kind ?? "digital") !== "digital" || product.status !== "published" || !product.price_amount || (!context.accountId && !product.stripe_price_id)) throw new HttpError(404, "This product is not available.");
   await assertDownloadAvailable(checkout?.product_snapshot?.storagePath ?? product.storage_path, "This product's download is temporarily unavailable. Please contact the studio before purchasing.");
@@ -48,7 +51,7 @@ export async function startCheckout(productId: string, checkoutId: string, linkS
       throw new HttpError(503, "Checkout is temporarily unavailable. Please contact the store.");
     }
     const input = {
-      id: checkoutId, store_id: STORE_ID, product_id: product.id, stripe_session_id: null,
+      id: checkoutId, store_id: storeId, product_id: product.id, stripe_session_id: null,
       stripe_price_id: price.id, amount: price.unit_amount!, currency: price.currency, product_snapshot: snapshotProduct(product),
       product_slug: product.slug,
       payment_connection_id: context.connectionId, checkout_origin: new URL(getEnv().APP_URL).origin,
@@ -56,7 +59,7 @@ export async function startCheckout(productId: string, checkoutId: string, linkS
     };
     const { data, error } = await getSupabase().from("checkouts").insert(input).select("*").single();
     if (error && error.code !== "23505") throw new Error("Could not reserve checkout");
-    checkout = data ?? await findCheckout(checkoutId);
+    checkout = data ?? await findCheckout(checkoutId, storeId);
     if (!checkout || checkout.product_id !== productId || (checkout.payment_connection_id ?? null) !== context.connectionId) throw new HttpError(409, "Start a new checkout.");
   }
   if (!checkout.stripe_price_id) throw new HttpError(409, "Start a new checkout.");
@@ -75,14 +78,14 @@ export async function startCheckout(productId: string, checkoutId: string, linkS
     // Shoppers can type a discount code (lib/discount-codes.ts); Stripe checks it is live and has uses left.
     allow_promotion_codes: true,
     client_reference_id: checkout.id,
-    metadata: { app: "veilcode-store", checkout_id: checkout.id, product_id: checkout.product_id, store_id: STORE_ID },
+    metadata: { app: "veilcode-store", checkout_id: checkout.id, product_id: checkout.product_id, store_id: storeId },
     // The checkout id lets the thank-you page suggest what pairs with this purchase (lib/thank-you-offers.ts).
-    success_url: new URL(`/thank-you?ref=${checkout.id}`, destination.origin).toString(),
+    success_url: new URL(`${destination.base ? storePath(product.store_id) : ""}/thank-you?ref=${checkout.id}`, destination.origin).toString(),
     cancel_url: new URL(`${destination.base}?checkout=cancelled`, destination.origin).toString(),
     integration_identifier: `veilcode-store-${suffix}`,
   }, { ...options, idempotencyKey: `checkout-${checkout.id}` });
   if (!session.url) throw new Error("Stripe checkout URL missing");
-  await bindCheckoutSession(checkout.id, session.id);
+  await bindCheckoutSession(checkout.id, session.id, storeId);
   return session.url;
 }
 

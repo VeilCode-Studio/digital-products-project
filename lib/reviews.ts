@@ -1,3 +1,5 @@
+import { getStore } from "./catalog";
+import { senderName } from "./physical-email";
 import "server-only";
 import { Resend } from "resend";
 import { getSupabase } from "./supabase";
@@ -44,7 +46,7 @@ function escape(value: string) {
 }
 const shortName = (name: string) => name.split(":")[0].trim();
 
-export function buildReviewEmail(productName: string, link: string) {
+export function buildReviewEmail(productName: string, link: string, seller?: string) {
   const name = shortName(productName);
   const stars = [5, 4, 3, 2, 1].map((rating) => `<a href="${escape(`${link}&rating=${rating}`)}" style="display:inline-block;margin:0 2px;font-size:28px;line-height:1;color:#F5B400;text-decoration:none" aria-label="${rating} stars">★</a>`).reverse().join("");
   return {
@@ -55,7 +57,7 @@ export function buildReviewEmail(productName: string, link: string) {
 <p style="margin:22px 0">${stars}</p>
 <p><a style="color:#2B59FF" href="${escape(link)}">Leave a short review</a></p>
 <p>If something isn't right, just reply to this email and we'll sort it out.</p>
-<p>Frank<br>PodStore</p>
+<p>${seller ? escape(seller) : "Frank<br>PodStore"}</p>
 <p style="font-size:12px;color:#737373">We only ask once for each order.</p>
 </div>`,
     text: `Hi,
@@ -66,27 +68,26 @@ Leave a review: ${link}
 
 If something isn't right, just reply to this email and we'll sort it out.
 
-Frank
-PodStore
+${seller || "Frank\nPodStore"}
 
 We only ask once for each order.`,
   };
 }
 
 function productNameFor(order: Order, products: Map<string, CatalogProduct>) {
-  return products.get(order.product_id)?.name ?? order.physical_snapshot?.items?.[0]?.name ?? order.product_snapshot?.name ?? "your order";
+  return (products.get(order.product_id)?.store_id === order.store_id ? products.get(order.product_id)?.name : null) ?? order.physical_snapshot?.items?.[0]?.name ?? order.product_snapshot?.name ?? "your order";
 }
 
 /** Sends the review requests that are due. Each order is claimed before sending, so it's asked at most once. */
 export async function sendReviewRequests(now = Date.now()) {
   const db = getSupabase();
   const since = new Date(now - MAX_AGE_DAYS * DAY).toISOString();
-  const { data, error } = await db.from("orders").select("*").eq("store_id", STORE_ID).is("review_requested_at", null)
+  const { data, error } = await db.from("orders").select("*").is("review_requested_at", null)
     .gte("created_at", since).order("created_at").limit(500);
   if (error) throw new Error("Could not load orders for review requests");
   const due = ((data ?? []) as Order[]).filter((order) => reviewDue(order, now)).slice(0, BATCH);
   if (!due.length) return { sent: 0, skipped: 0 };
-  const { data: productRows } = await db.from("products").select("*").eq("store_id", STORE_ID).in("id", [...new Set(due.map((order) => order.product_id))]);
+  const { data: productRows } = await db.from("products").select("*").in("id", [...new Set(due.map((order) => order.product_id))]);
   const products = new Map(((productRows ?? []) as CatalogProduct[]).map((product) => [product.id, product]));
   const env = getEnv();
   const deployment = getDeployment();
@@ -100,9 +101,10 @@ export async function sendReviewRequests(now = Date.now()) {
     if (!deployment.production && !emailAllowed(order.email, deployment.emailAllowlist)) { skipped += 1; continue; }
     const link = new URL("/review", env.APP_URL);
     link.searchParams.set("token", token.token);
-    const message = buildReviewEmail(productNameFor(order, products), link.toString());
+    const store = order.store_id !== STORE_ID ? await getStore(order.store_id) : null;
+    const message = buildReviewEmail(productNameFor(order, products), link.toString(), store?.name);
     const { error: sendError } = await resend.emails.send({
-      from: "PodStore <orders@mail.veilcode.studio>", replyTo: "support@veilcode.studio", to: order.email, ...message,
+      from: `${store ? senderName(store.name) : "PodStore"} <orders@mail.veilcode.studio>`, replyTo: store?.support_email || "support@veilcode.studio", to: order.email, ...message,
       subject: deployment.production ? message.subject : `[${deployment.env === "preview" ? "Preview" : "Dev"}] ${message.subject}`,
     }, { idempotencyKey: `review-${order.id}`, signal: AbortSignal.timeout(15_000) }).catch(() => ({ error: true }));
     if (sendError) {

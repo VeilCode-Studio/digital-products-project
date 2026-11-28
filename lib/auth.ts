@@ -5,12 +5,17 @@ import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { getEnv, ConfigurationError } from "./env";
 import { HttpError } from "./http";
+import { onboardingEnabled } from "./onboarding-mode";
+import type { User } from "@supabase/supabase-js";
 
 export const OWNER_COOKIE = "veilcode_owner";
 export function getOwnerId() {
   const id = process.env.OWNER_USER_ID;
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) throw new ConfigurationError("OWNER_USER_ID", "must be your Supabase Auth user's UUID");
   return id;
+}
+export function allowedWorkspaceUser(user: User | null | undefined) {
+  return !!user && (user.id === getOwnerId() || (onboardingEnabled() && !!user.email_confirmed_at && !!user.email && !user.is_anonymous));
 }
 // Auth clients are request-scoped: signing in must never mutate a shared session.
 // Password sign-in and token verification need only the public key, never a data key.
@@ -25,7 +30,7 @@ export const ownerUser = cache(async function ownerUser() {
   const token = (await cookies()).get(OWNER_COOKIE)?.value;
   if (!token) return null;
   const { data, error } = await authClient().auth.getUser(token);
-  return !error && data.user?.id === getOwnerId() ? data.user : null;
+  return !error && allowedWorkspaceUser(data.user) ? data.user : null;
 });
 export async function requireOwner() {
   const user = await ownerUser();

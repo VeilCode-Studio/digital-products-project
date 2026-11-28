@@ -101,51 +101,51 @@ function researchId(value: unknown) {
   return value;
 }
 
-async function loadResearch(id: unknown) {
-  const { data, error } = await getSupabase().from("research_products").select(COLUMNS).eq("store_id", STORE_ID).eq("id", researchId(id)).maybeSingle();
+async function loadResearch(id: unknown, storeId: string) {
+  const { data, error } = await getSupabase().from("research_products").select(COLUMNS).eq("store_id", storeId).eq("id", researchId(id)).maybeSingle();
   if (error) throw new HttpError(500, "Could not load that product idea. Please try again.");
   if (!data) throw new HttpError(404, "That product idea wasn't found. It may have been deleted.");
   return data as ResearchProduct;
 }
 
 /** Every idea on the board, newest activity first, with the store made from it (if any). */
-export async function listResearch(): Promise<ResearchCard[]> {
+export async function listResearch(storeId = STORE_ID): Promise<ResearchCard[]> {
   const supabase = getSupabase();
   const [ideas, stores] = await Promise.all([
-    supabase.from("research_products").select(COLUMNS).eq("store_id", STORE_ID).order("updated_at", { ascending: false }).limit(500),
-    supabase.from("products").select("id, slug, status, kind").eq("store_id", STORE_ID),
+    supabase.from("research_products").select(COLUMNS).eq("store_id", storeId).order("updated_at", { ascending: false }).limit(500),
+    supabase.from("products").select("id, slug, status, kind").eq("store_id", storeId),
   ]);
   if (ideas.error || stores.error) throw new Error("Could not load the research board");
   const byId = new Map((stores.data as { id: string; slug: string; status: string; kind: "digital" | "physical" }[]).map((store) => [store.id, store]));
   return (ideas.data as ResearchProduct[]).map((idea) => {
     const store = idea.store_product_id ? byId.get(idea.store_product_id) : undefined;
-    return { ...idea, store: store ? { slug: store.slug, status: store.status, kind: store.kind } : null };
+    return { ...idea, store: store ? { store_id: storeId, slug: store.slug, status: store.status, kind: store.kind } : null };
   });
 }
 
-export async function createResearch(raw: Record<string, unknown>) {
+export async function createResearch(raw: Record<string, unknown>, storeId = STORE_ID) {
   const { title, ...fields } = parseResearchFields(raw, true);
   const { data, error } = await getSupabase().from("research_products")
-    .insert({ id: randomUUID(), store_id: STORE_ID, kind: "physical", stage: "saved", notes: "", ads: [], supplier: null, image_url: null, target_price: null, ...fields, title: title! })
+    .insert({ id: randomUUID(), store_id: storeId, kind: "physical", stage: "saved", notes: "", ads: [], supplier: null, image_url: null, target_price: null, ...fields, title: title! })
     .select(COLUMNS).single();
   if (error || !data) throw new HttpError(500, "Could not save that product idea. Please try again.");
   return data as ResearchProduct;
 }
 
-export async function updateResearch(raw: Record<string, unknown>) {
+export async function updateResearch(raw: Record<string, unknown>, storeId = STORE_ID) {
   const id = researchId(raw.id);
   const fields = parseResearchFields(raw);
   const { data, error } = await getSupabase().from("research_products")
-    .update({ ...fields, updated_at: new Date().toISOString() }).eq("store_id", STORE_ID).eq("id", id).select(COLUMNS).maybeSingle();
+    .update({ ...fields, updated_at: new Date().toISOString() }).eq("store_id", storeId).eq("id", id).select(COLUMNS).maybeSingle();
   if (error) throw new HttpError(500, "Could not save your changes. Please try again.");
   if (!data) throw new HttpError(404, "That product idea wasn't found. It may have been deleted.");
   return data as ResearchProduct;
 }
 
 /** Deletes the idea only. A store made from it stays, as its own product. */
-export async function deleteResearch(raw: Record<string, unknown>) {
+export async function deleteResearch(raw: Record<string, unknown>, storeId = STORE_ID) {
   const id = researchId(raw.id);
-  const { error } = await getSupabase().from("research_products").delete().eq("store_id", STORE_ID).eq("id", id);
+  const { error } = await getSupabase().from("research_products").delete().eq("store_id", storeId).eq("id", id);
   if (error) throw new HttpError(500, "Could not delete that product idea. Please try again.");
   return { id };
 }
@@ -153,15 +153,15 @@ export async function deleteResearch(raw: Record<string, unknown>) {
 const BEFORE_TESTING: Stage[] = ["saved", "researching", "sourcing"];
 
 /** The next step: a draft product store named after the idea, linked back to it. */
-export async function createStoreFromResearch(raw: Record<string, unknown>) {
-  const idea = await loadResearch(raw.id);
+export async function createStoreFromResearch(raw: Record<string, unknown>, storeId = STORE_ID) {
+  const idea = await loadResearch(raw.id, storeId);
   if (idea.kind === "digital") throw new HttpError(400, "Stores are for physical products. Create a digital product draft instead.");
   if (idea.store_product_id) throw new HttpError(409, "This idea already has a store. Open it from the card.");
-  const { id: productId } = await createStore({ name: idea.title, slug: raw.slug, theme: raw.theme });
+  const { id: productId } = await createStore({ name: idea.title, slug: raw.slug, theme: raw.theme }, storeId);
   const { error } = await getSupabase().from("research_products").update({
     store_product_id: productId, updated_at: new Date().toISOString(),
     ...(BEFORE_TESTING.includes(idea.stage) ? { stage: "testing" } : {}),
-  }).eq("store_id", STORE_ID).eq("id", idea.id);
+  }).eq("store_id", storeId).eq("id", idea.id);
   // The store exists either way; the owner can still find it under Products.
   if (error) throw new HttpError(500, "The store was created, but linking it to this idea failed. Find it under Products.");
   return { productId };

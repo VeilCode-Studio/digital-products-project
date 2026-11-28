@@ -44,6 +44,18 @@ The requested outcome is a working domain flow and an application that onboards 
 - The owned subdomain `store-preview.answersteady.com` is attached to staging and a published test product. It remains pending because public DNS does not yet resolve it. Hostinger needs a CNAME named `store-preview` pointing to `026cb6b5ac77fcc4.vercel-dns-017.com` (TTL 300). The apex domain and existing website have not been changed. DNS, HTTPS and removal are not yet verified.
 - Production stays on the existing release while this goal is implemented and reviewed.
 
+### Workspace onboarding implementation (staging review)
+
+This update supersedes the earlier outstanding implementation notes above. Authentication supports verified independent users, email confirmation and password recovery with fixed callback URLs. Workspace provisioning is service-only, creates a random store ID, and cannot reassign an existing owner's store. Public signup requires a separate production opt-in; no production opt-in is configured.
+
+Independent storefronts use `/shops/<store-id>` URLs, including product previews, legal pages and payment results. Custom domains resolve through their own store/product mapping. Public catalog, private downloads, gift signup/delivery, seller email branding, cancellation links, analytics, research, margins and assistant connections now carry the workspace context. Platform supplier credentials and server advertising tokens remain restricted to the original store. Payment results wait for a recorded paid order before saying the purchase succeeded.
+
+Migration `20261128202846_workspace_onboarding` was applied only to staging. A rollback transaction verified repeat provisioning, original ownership preservation, browser-role RPC denial, scoped download grants and atomic download limits. TypeScript and ESLint passed. The cumulative 485-test suite covers verified provisioning, two-workspace authorization, merchant checkout/webhook/delivery, public/draft boundaries, assistant access and pending payment displays. One stale assistant-brand assertion was updated and its 17-test file passed again.
+
+A separate sandbox Connect webhook was created for staging and its secret configured only for the staging branch. Staging onboarding and sandbox Connect flags are enabled for deployed verification. Supabase's staging Auth service still reports `disable_signup: true`; enabling new-user signup, preserving email confirmation and allowing the two staging Auth callback URLs is required before self-service signup/email delivery can be accepted. Two-user deployed verification is the next check; synthetic administrator-created users do not prove signup email delivery or merchant OAuth consent.
+
+Production remains unchanged at `4337f57`. No real domain purchase is authorized or attempted. Owned-domain DNS/HTTPS and removal remain pending the Hostinger record described above.
+
 ## Security gates before public signup
 
 Staging's existing private backup table had RLS disabled and browser-role grants. Migration `20261127120512_protect_private_page_backup` enables RLS and revokes public, anonymous and authenticated access without changing backup data or server-role grants. The table is absent from production. Leaked-password protection remains onboarding hardening work. References: [RLS-disabled remediation](https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public), [password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).

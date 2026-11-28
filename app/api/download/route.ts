@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   try {
     const grant = await consumeDownload(hashToken(token));
     if (!grant) return invalid();
-    const product = await resolveDeliveryProduct(grant.product_id, grant.product_snapshot);
+    const product = await resolveDeliveryProduct(grant.product_id, grant.product_snapshot, grant.store_id);
     if (!product) throw new Error("Unknown download product");
     const { data, error } = await getSupabase().storage.from(env.SUPABASE_BUCKET)
       .createSignedUrl(product.storagePath, 60, { download: product.downloadFilename });

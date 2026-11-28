@@ -1,4 +1,5 @@
 import "server-only";
+import { productPath } from "../storefront-paths";
 import { getSupabase } from "../supabase";
 import { HttpError } from "../http";
 import { STORE_ID, formatMoney } from "../store-config";
@@ -29,8 +30,8 @@ export function orderStatus(order: Order) {
   return order.email_status === "sent" ? "delivered by email" : "download email not sent yet";
 }
 
-async function ordersSince(since: number, limit = 1000) {
-  const { data, error } = await getSupabase().from("orders").select("*").eq("store_id", STORE_ID)
+async function ordersSince(since: number, limit: number, storeId: string) {
+  const { data, error } = await getSupabase().from("orders").select("*").eq("store_id", storeId)
     .gt("created_at", new Date(since).toISOString()).order("created_at", { ascending: false }).limit(limit);
   if (error) throw new HttpError(500, "Could not load orders.");
   return (data ?? []) as Order[];
@@ -46,10 +47,10 @@ function orderSummary(order: Order) {
   };
 }
 
-export async function storeOverview(days = 30) {
+export async function storeOverview(days = 30, storeId = STORE_ID) {
   const window = Math.min(Math.max(Math.round(days), 1), 365);
   const now = Date.now();
-  const [store, orders, products, ideas] = await Promise.all([getStore(), ordersSince(now - window * DAY), listProducts(), listResearch()]);
+  const [store, orders, products, ideas] = await Promise.all([getStore(storeId), ordersSince(now - window * DAY, 1000, storeId), listProducts(false, undefined, storeId), listResearch(storeId)]);
   const paid = orders.filter((order) => order.amount_total !== null && order.currency);
   const byCurrency = new Map<string, { gross: number; refunded: number; orders: number }>();
   for (const order of paid) {
@@ -95,8 +96,8 @@ export async function storeOverview(days = 30) {
 export const ORDER_FILTERS = ["all", "needs_ordering", "ordered", "shipped", "delivered", "cancelled", "email_pending"] as const;
 export type OrderFilter = (typeof ORDER_FILTERS)[number];
 
-export async function listOrders({ filter = "all", kind, days = 30, limit = 25 }: { filter?: OrderFilter; kind?: "digital" | "physical"; days?: number; limit?: number }) {
-  const orders = await ordersSince(Date.now() - Math.min(Math.max(days, 1), 365) * DAY);
+export async function listOrders({ filter = "all", kind, days = 30, limit = 25 }: { filter?: OrderFilter; kind?: "digital" | "physical"; days?: number; limit?: number }, storeId = STORE_ID) {
+  const orders = await ordersSince(Date.now() - Math.min(Math.max(days, 1), 365) * DAY, 1000, storeId);
   const matches = orders.filter((order) => {
     if (kind && (order.kind ?? "digital") !== kind) return false;
     switch (filter) {
@@ -111,10 +112,10 @@ export async function listOrders({ filter = "all", kind, days = 30, limit = 25 }
 }
 
 /** One order in full, including the customer's details, found by its reference (last 8 characters). */
-export async function getOrder(ref: string) {
+export async function getOrder(ref: string, storeId = STORE_ID) {
   const wanted = ref.trim().toUpperCase().replace(/^#/, "");
   if (!/^[A-Z0-9_]{6,80}$/.test(wanted)) throw new HttpError(400, "Give the order reference from the confirmation email, like 7KQ2M9XA.");
-  const orders = await ordersSince(Date.now() - 400 * DAY, 2000);
+  const orders = await ordersSince(Date.now() - 400 * DAY, 2000, storeId);
   const order = orders.find((entry) => orderRef(entry) === wanted.slice(-8) || entry.stripe_session_id.toUpperCase() === wanted);
   if (!order) throw new HttpError(404, `No order with reference ${wanted} in the last 400 days.`);
   const address = order.shipping_address;
@@ -136,17 +137,17 @@ function productSummary(product: CatalogProduct) {
   return {
     id: product.id, kind: product.kind, name: product.name, slug: product.slug, status: product.status, tagline: product.tagline,
     price: product.kind === "digital" ? money(product.price_amount, product.currency) : undefined,
-    url: product.kind === "physical" ? `/s/${product.slug}` : `/p/${product.slug}`,
+    url: productPath(product),
     updatedAt: product.updated_at,
   };
 }
 
-export async function listCatalogue(kind?: "digital" | "physical") {
-  return { products: (await listProducts(false, kind)).map(productSummary) };
+export async function listCatalogue(kind?: "digital" | "physical", storeId = STORE_ID) {
+  return { products: (await listProducts(false, kind, storeId)).map(productSummary) };
 }
 
-export async function researchBoard(stage?: string) {
-  const ideas = await listResearch();
+export async function researchBoard(stage?: string, storeId = STORE_ID) {
+  const ideas = await listResearch(storeId);
   return {
     ideas: ideas.filter((idea) => !stage || idea.stage === stage).map((idea) => {
       const economics = unitEconomics(idea);

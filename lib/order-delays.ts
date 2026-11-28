@@ -5,6 +5,7 @@ import { getStripe } from "./stripe";
 import { getEnv } from "./env";
 import { HttpError } from "./http";
 import { STORE_ID } from "./store-config";
+import { productPath } from "./storefront-paths";
 import { getCatalogProduct } from "./catalog";
 import { stripeLivemode } from "./payment-connections";
 import { daysBetween, isoDate, originalShipBy, promisedShipBy } from "./order-dates";
@@ -108,11 +109,9 @@ export function parseShipBy(value: unknown, order: Order, today = new Date()) {
  * newest link works. If the email can't be sent nothing is recorded, so the owner can retry.
  */
 export async function sendOrderDelay(order: Order, input: { shipBy: string; reason: string }) {
-  // Tenant-specific cancellation URLs are part of the pending public-routing rollout.
-  if (order.store_id !== STORE_ID) throw new HttpError(503, "Delay notices are not available for this workspace yet. Contact the customer directly.");
   const status = order.fulfillment_status ?? "needs_ordering";
   if (!CANCELLABLE.includes(status)) throw new HttpError(409, "Only orders that haven't shipped can be delayed.");
-  const product = await getCatalogProduct(order.product_id);
+  const product = await getCatalogProduct(order.product_id, order.store_id);
   if (!product) throw new HttpError(409, "This order's store no longer exists, so the cancel link can't be made. Email the customer directly.");
   const notices = order.delay_notices ?? [];
   const original = originalShipBy(order);
@@ -121,19 +120,19 @@ export async function sendOrderDelay(order: Order, input: { shipBy: string; reas
   const token = randomBytes(32).toString("base64url");
   const db = getSupabase();
   const { data: armed, error } = await db.from("orders").update({ cancel_token_hash: hashCancelToken(token) })
-    .eq("id", order.id).eq("store_id", STORE_ID).eq("kind", "physical").eq("fulfillment_status", status).select("id").maybeSingle();
+    .eq("id", order.id).eq("store_id", order.store_id).eq("kind", "physical").eq("fulfillment_status", status).select("id").maybeSingle();
   if (error) throw new Error("Could not update order");
   if (!armed) throw new HttpError(409, "This order changed in another tab. Reload to see its latest status.");
 
   // The secret sits after "#": browsers never send it to a server, so it stays out of logs.
-  const cancelUrl = `${new URL(`/s/${product.slug}/cancel`, getEnv().APP_URL).toString()}#${token}`;
+  const cancelUrl = `${new URL(`${productPath(product)}/cancel`, getEnv().APP_URL).toString()}#${token}`;
   try {
     await sendDelayNotice(order, { shipBy: input.shipBy, previousShipBy: promisedShipBy(order), reason: input.reason, cancelUrl, needsConsent });
   } catch {
     throw new HttpError(502, "The delay notice couldn't be sent, so nothing was recorded. Please try again.");
   }
   const { data, error: saveError } = await db.from("orders").update({ delay_notices: [...notices, { sentAt: new Date().toISOString(), shipBy: input.shipBy, reason: input.reason }] })
-    .eq("id", order.id).eq("store_id", STORE_ID).select("*").maybeSingle();
+    .eq("id", order.id).eq("store_id", order.store_id).select("*").maybeSingle();
   if (saveError || !data) throw new HttpError(500, "The email was sent, but the notice couldn't be recorded. Reload before sending another.");
   return { order: data as Order, needsConsent };
 }
@@ -142,7 +141,7 @@ export async function sendOrderDelay(order: Order, input: { shipBy: string; reas
 export async function findOrderByCancelToken(token: unknown) {
   if (typeof token !== "string" || !/^[A-Za-z0-9_-]{40,60}$/.test(token)) return null;
   const { data, error } = await getSupabase().from("orders").select("*")
-    .eq("cancel_token_hash", hashCancelToken(token)).eq("store_id", STORE_ID).eq("kind", "physical").maybeSingle();
+    .eq("cancel_token_hash", hashCancelToken(token)).eq("kind", "physical").maybeSingle();
   if (error) throw new Error("Could not load order");
   return data as Order | null;
 }

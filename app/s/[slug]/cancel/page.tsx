@@ -8,10 +8,10 @@ import "../storefront.css";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ slug: string }> };
+type Params = { params: Promise<{ slug: string; storeId?: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const store = await getStorefront((await params).slug);
+  const store = await getStorefront((await params).slug, {}, (await params).storeId);
   return {
     title: { absolute: store ? `Your order | ${store.brand.name}` : "Your order" },
     robots: { index: false, follow: false }, referrer: "no-referrer",
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 /** Where a delay notice's "cancel for a full refund" link lands. The order is found in the browser. */
 export default async function CancelPage({ params }: Params) {
-  const store = await getStorefront((await params).slug);
+  const store = await getStorefront((await params).slug, {}, (await params).storeId);
   const body = <main className="st-section st-thanks">
     <div className="st-shell narrow">
       <h1 className="st-display">Your order</h1>

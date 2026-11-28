@@ -1,3 +1,4 @@
+import { productPath, storePath } from "@/lib/storefront-paths";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
@@ -19,13 +20,13 @@ export const shortName = (product: CatalogProduct) => product.name.split(":")[0]
  * `base` is "" on the homepage (links jump within the page) and "/" elsewhere (links go back to its sections).
  * Product pages leave out the shop button so the buy button is the one call to action.
  */
-export function SiteHeader({ base = "", nav = true, cta = true }: { base?: "" | "/"; nav?: boolean; cta?: boolean }) {
+export function SiteHeader({ base = "", nav = true, cta = true, store }: { base?: string; store?: Store; nav?: boolean; cta?: boolean }) {
   return (
     <header className="vc-header" data-header>
       <div className="vc-header-inner vc-wrap">
-        <Link href="/" className="vc-brand" aria-label="PodStore home">
+        <Link href={store ? storePath(store.id) || "/" : "/"} className="vc-brand" aria-label={`${store?.name ?? "PodStore"} home`}>
           <Image src="/brand/podstore-mark.svg" alt="" width={32} height={32} />
-          <span>Pod<span>Store</span></span>
+          <span>{store?.name ?? <>Pod<span>Store</span></>}</span>
         </Link>
         {nav && (
           <nav className="vc-nav" aria-label="Main">
@@ -40,7 +41,7 @@ export function SiteHeader({ base = "", nav = true, cta = true }: { base?: "" | 
   );
 }
 
-export function SiteFooter({ store, products, support, base = "" }: { store: Store; products: CatalogProduct[]; support: string; base?: "" | "/" }) {
+export function SiteFooter({ store, products, support, base = "" }: { store: Store; products: CatalogProduct[]; support: string; base?: string }) {
   const listed = products.filter((product) => product.price_amount !== null).slice(0, 4);
   return (
     <footer className="vc-footer">
@@ -54,21 +55,21 @@ export function SiteFooter({ store, products, support, base = "" }: { store: Sto
             <div>
               <h3>Shop</h3>
               <a href={`${base}#collection`}>The collection</a>
-              {listed.map((product) => <Link key={product.id} href={`/p/${product.slug}`}>{shortName(product)}</Link>)}
+              {listed.map((product) => <Link key={product.id} href={productPath(product)}>{shortName(product)}</Link>)}
             </div>
             <div>
               <h3>Studio</h3>
-              {store.website_url && <a href={store.website_url} target="_blank" rel="noopener noreferrer">veilcode.studio</a>}
+              {store.website_url && <a href={store.website_url} target="_blank" rel="noopener noreferrer">{store.name}</a>}
               <a href={`mailto:${support}`}>Support</a>
               <Link href="/admin">Studio login</Link>
             </div>
             <div>
               <h3>Legal</h3>
-              {LEGAL_KINDS.map((kind) => <Link key={kind} href={`/${kind}`}>{LEGAL_TITLES[kind]}</Link>)}
+              {LEGAL_KINDS.map((kind) => <Link key={kind} href={`${storePath(store.id || undefined)}/${kind}`}>{LEGAL_TITLES[kind]}</Link>)}
             </div>
           </nav>
         </div>
-        <p className="vc-wordmark" aria-hidden="true">PodStore</p>
+        <p className="vc-wordmark" aria-hidden="true">{store.name}</p>
         <div className="vc-footer-base">
           <span>© {new Date().getFullYear()} {store.name || "PodStore"}</span>
           <span>Secure payments by Stripe</span>
@@ -98,6 +99,6 @@ export function ProductTile({ product, eager = false }: { product: CatalogProduc
     </>
   );
   return available
-    ? <Link href={`/p/${product.slug}`} className="vc-product" data-reveal>{body}</Link>
+    ? <Link href={productPath(product)} className="vc-product" data-reveal>{body}</Link>
     : <div className="vc-product" data-reveal>{body}</div>;
 }

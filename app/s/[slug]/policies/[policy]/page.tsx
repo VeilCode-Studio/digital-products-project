@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { STORE_ID } from "@/lib/store-config";
+import { productPath } from "@/lib/storefront-paths";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { getStorefront, type Storefront } from "@/lib/storefront";
@@ -12,10 +14,10 @@ import "../../storefront.css";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ slug: string; policy: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
+type Params = { params: Promise<{ slug: string; storeId?: string; policy: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 // The owner can read a draft store's policies with ?preview=1, like the store page itself.
-const loadStore = cache((slug: string, preview: boolean) => getStorefront(slug, { preview }));
+const loadStore = cache((slug: string, preview: boolean, storeId: string) => getStorefront(slug, { preview }, storeId));
 
 function documentFor(store: Storefront, kind: PolicyKind) {
   return buildPolicy(kind, {
@@ -24,9 +26,9 @@ function documentFor(store: Storefront, kind: PolicyKind) {
   });
 }
 async function load({ params, searchParams }: Params) {
-  const [{ slug, policy }, query] = await Promise.all([params, searchParams]);
+  const [{ slug, storeId = STORE_ID, policy }, query] = await Promise.all([params, searchParams]);
   if (!(POLICY_KINDS as readonly string[]).includes(policy)) return null;
-  const store = await loadStore(slug, query.preview === "1");
+  const store = await loadStore(slug, query.preview === "1", storeId);
   if (!store?.policies) return null;
   return { store, kind: policy as PolicyKind };
 }
@@ -48,8 +50,8 @@ const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZon
 export default async function PolicyPage(props: Params) {
   const found = await load(props);
   if (!found) {
-    const [{ slug, policy }, query] = await Promise.all([props.params, props.searchParams]);
-    if (query.preview === "1") await signInForPreview(previewPath(`/s/${slug}/policies/${policy}`, query));
+    const [{ slug, storeId = STORE_ID, policy }, query] = await Promise.all([props.params, props.searchParams]);
+    if (query.preview === "1") await signInForPreview(previewPath(`${productPath({ store_id: storeId, kind: "physical", slug })}/policies/${policy}`, query));
     notFound();
   }
   const { store, kind } = found;
@@ -82,7 +84,7 @@ export default async function PolicyPage(props: Params) {
             </section>
           ))}
           <nav className="st-policy-nav" aria-label="Other policies">
-            {POLICY_KINDS.filter((other) => other !== kind).map((other) => <a key={other} href={`/s/${store.product.slug}/policies/${other}${store.product.draft ? "?preview=1" : ""}`}>{POLICY_TITLES[other]}</a>)}
+            {POLICY_KINDS.filter((other) => other !== kind).map((other) => <a key={other} href={`${productPath({ ...store.product, kind: "physical" })}/policies/${other}${store.product.draft ? "?preview=1" : ""}`}>{POLICY_TITLES[other]}</a>)}
           </nav>
         </article>
       </main>

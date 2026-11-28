@@ -1,4 +1,5 @@
-import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
+import { apiError, HttpError, jsonObject } from "@/lib/http";
+import { shopperOrigin } from "@/lib/domains";
 import { CANCELLABLE, cancelOrder, findOrderByCancelToken } from "@/lib/order-delays";
 import { promisedShipBy } from "@/lib/order-dates";
 
@@ -12,10 +13,11 @@ const headers = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" 
 // once the order ships or is cancelled.
 export async function POST(req: Request) {
   try {
-    sameOrigin(req);
+    await shopperOrigin(req);
     const body = await jsonObject(req);
     const order = await findOrderByCancelToken(body.token);
     if (!order) throw new HttpError(404, "This link has expired. It stops working once an order ships or is cancelled, or when a newer email replaces it.");
+    await shopperOrigin(req, order.product_id);
     const snapshot = order.physical_snapshot!;
     const status = order.fulfillment_status ?? "needs_ordering";
     const summary = {

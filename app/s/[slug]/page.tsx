@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { STORE_ID } from "@/lib/store-config";
+import { productPath } from "@/lib/storefront-paths";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { getStorefront, type Storefront } from "@/lib/storefront";
@@ -16,13 +18,13 @@ import "./storefront.css";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
+type Params = { params: Promise<{ slug: string; storeId?: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 // Shared by generateMetadata and the page so a request loads the store once.
-const loadStore = cache((slug: string, preview: boolean, unsaved: boolean) => getStorefront(slug, { preview, unsaved }));
+const loadStore = cache((slug: string, preview: boolean, unsaved: boolean, storeId: string) => getStorefront(slug, { preview, unsaved }, storeId));
 async function load({ params, searchParams }: Params) {
-  const [{ slug }, query] = await Promise.all([params, searchParams]);
-  return { store: await loadStore(slug, query.preview === "1", query.preview === "1" && query.draft === "1"), query };
+  const [{ slug, storeId = STORE_ID }, query] = await Promise.all([params, searchParams]);
+  return { store: await loadStore(slug, query.preview === "1", query.preview === "1" && query.draft === "1", storeId), query };
 }
 
 function heroOf(store: Storefront) {
@@ -71,7 +73,7 @@ export default async function StorePage(props: Params) {
   const { store, query } = await load(props);
   if (!store) {
     // A signed-out owner opening a draft preview signs in first instead of seeing a 404.
-    if (query.preview === "1") await signInForPreview(previewPath(`/s/${(await props.params).slug}`, query));
+    if (query.preview === "1") await signInForPreview(previewPath(productPath({ store_id: (await props.params).storeId, kind: "physical", slug: (await props.params).slug }), query));
     notFound();
   }
   const hero = heroOf(store);
@@ -91,7 +93,7 @@ export default async function StorePage(props: Params) {
     );
   }
 
-  const ratings = store.product.draft ? null : await approvedReviews(store.product.id).catch(() => null);
+  const ratings = store.product.draft ? null : await approvedReviews(store.product.id, store.product.store_id).catch(() => null);
   const sections = withVerifiedReviews(store.page.sections.filter((section) => section.enabled), ratings?.reviews ?? []);
   const announcement = sections.find((section) => section.type === "announcement");
   const lowest = Math.min(...store.variants.map((variant) => variant.price));

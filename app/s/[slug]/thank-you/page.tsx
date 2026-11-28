@@ -1,25 +1,30 @@
 import type { Metadata } from "next";
+import { STORE_ID } from "@/lib/store-config";
+import { productPath } from "@/lib/storefront-paths";
 import { notFound } from "next/navigation";
 import { CircleCheck, Mail, PackageCheck, Truck } from "lucide-react";
 import { getStorefront } from "@/lib/storefront";
 import { StoreFrame } from "@/components/storefront/store-frame";
 import { AdEvent } from "@/components/storefront/tiktok";
 import { findCheckout } from "@/lib/checkout";
+import { findOrder } from "@/lib/orders";
 import { thankYouCode } from "@/lib/thank-you-offers";
 import { ThankYouOffers } from "@/components/site/thank-you-offers";
 import "../storefront.css";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
+type Params = { params: Promise<{ slug: string; storeId?: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The paid checkout this page was reached from, for the store's ad pixel. Only ever the purchase's own figures. */
-async function purchaseFor(storeProductId: string, ref: unknown) {
+async function purchaseFor(storeProductId: string, ref: unknown, storeId = STORE_ID) {
   if (typeof ref !== "string" || !UUID.test(ref)) return null;
-  const checkout = await findCheckout(ref);
+  const checkout = await findCheckout(ref, storeId);
   if (!checkout || checkout.kind !== "physical" || checkout.product_id !== storeProductId || !checkout.stripe_session_id || !checkout.physical_snapshot) return null;
+  const order = await findOrder(checkout.stripe_session_id);
+  if (!order || order.store_id !== storeId || order.product_id !== storeProductId) return null;
   const item = checkout.physical_snapshot.items[0];
   return {
     eventId: checkout.id,
@@ -31,17 +36,17 @@ async function purchaseFor(storeProductId: string, ref: unknown) {
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const store = await getStorefront((await params).slug);
+  const store = await getStorefront((await params).slug, {}, (await params).storeId);
   // A confirmation page is never useful in search results.
   return { title: { absolute: store ? `Order confirmed | ${store.brand.name}` : "Order confirmed" }, robots: { index: false, follow: false } };
 }
 
 export default async function ThankYouPage({ params, searchParams }: Params) {
-  const store = await getStorefront((await params).slug);
+  const store = await getStorefront((await params).slug, {}, (await params).storeId);
   if (!store) notFound();
   const [purchase, code] = await Promise.all([
-    store.brand.tiktokPixelId || store.brand.metaPixelId ? purchaseFor(store.product.id, (await searchParams).ref) : null,
-    thankYouCode().catch(() => null),
+    purchaseFor(store.product.id, (await searchParams).ref, store.product.store_id),
+    thankYouCode(store.product.store_id).catch(() => null),
   ]);
   // Total time from ordering: processing (from the store's policies) plus the shipping option's transit time.
   const processing = store.policies?.processingDays ?? { min: 0, max: 0 };
@@ -54,19 +59,19 @@ export default async function ThankYouPage({ params, searchParams }: Params) {
   ];
   return (
     <StoreFrame store={store}>
-      {purchase && <AdEvent event="Purchase" params={purchase.params} eventId={purchase.eventId} />}
+      {purchase && (store.brand.tiktokPixelId || store.brand.metaPixelId) && <AdEvent event="Purchase" params={purchase.params} eventId={purchase.eventId} />}
       <main className="st-section st-thanks">
         <div className="st-shell narrow">
           <span className="st-icon large st-thanks-mark"><CircleCheck size={32} strokeWidth={1.6} aria-hidden /></span>
-          <h1 className="st-display">Thank you. Your order is confirmed.</h1>
-          <p className="st-lede">Your payment went through and your {store.product.name} is reserved for you.</p>
+          <h1 className="st-display">{purchase ? "Thank you. Your order is confirmed." : "Checking your payment"}</h1>
+          <p className="st-lede">{purchase ? `Your payment went through and your ${store.product.name} is reserved for you.` : "Confirmation may take a moment. Your order email will confirm when the payment succeeds. Refresh this page shortly to check again."}</p>
           <ol className="st-thanks-steps">
             {steps.map((step) => <li key={step.title}><span className="st-icon"><step.icon size={22} strokeWidth={1.75} aria-hidden /></span><div><h2>{step.title}</h2><p>{step.text}</p></div></li>)}
           </ol>
           {/* Each store is its own brand, so only the code for next time shows here, not the digital collection. */}
-          <ThankYouOffers offers={{ code, products: [] }} accent="var(--st-accent)" />
+          {purchase && <ThankYouOffers offers={{ code, products: [] }} accent="var(--st-accent)" />}
           <div className="st-thanks-actions">
-            <a className="st-button" href={`/s/${store.product.slug}`}>Back to {store.brand.name}</a>
+            <a className="st-button" href={`${productPath({ ...store.product, kind: "physical" })}`}>Back to {store.brand.name}</a>
             {store.brand.supportEmail && <p>Need to change your address? Email <a href={`mailto:${store.brand.supportEmail}`}>{store.brand.supportEmail}</a> before it ships.</p>}
           </div>
         </div>

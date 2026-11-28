@@ -3,6 +3,8 @@ import { getSupabase } from "./supabase";
 import { getEnv } from "./env";
 import { STORE_ID } from "./store-config";
 import { ownerUser } from "./auth";
+import { workspaceForUser } from "./workspace";
+import { STORE_UUID } from "./storefront-paths";
 import { parseStorePage, type StorePage } from "./store-page";
 import { parseBrand, THEMES, type ThemeId } from "./store-themes";
 import { parseStorePolicies, type StorePolicies } from "./store-policies";
@@ -18,7 +20,7 @@ export type PublicVariant = {
 export type PublicOption = { name: string; values: string[] };
 export type PublicShipping = { name: string; amount: number; minDays: number; maxDays: number };
 export type Storefront = {
-  product: { id: string; slug: string; name: string; tagline: string; description: string; currency: string; draft: boolean };
+  product: { id: string; store_id?: string; slug: string; name: string; tagline: string; description: string; currency: string; draft: boolean };
   theme: ThemeId;
   brand: { name: string; logo: string | null; accent: string | null; supportEmail: string | null; tiktokPixelId: string | null; metaPixelId: string | null };
   page: StorePage;
@@ -115,14 +117,15 @@ const PREVIEW_DRAFT_MS = 86_400_000;
  * and an unreadable page or brand is treated as not found rather than rendered half-validated. With
  * `unsaved`, the owner sees the editor's latest unsaved draft (validated again here) instead.
  */
-export async function getStorefront(slug: string, { preview = false, unsaved = false } = {}): Promise<Storefront | null> {
-  if (!/^[a-z0-9-]{1,80}$/.test(slug)) return null;
+export async function getStorefront(slug: string, { preview = false, unsaved = false } = {}, storeId = STORE_ID): Promise<Storefront | null> {
+  if (!/^[a-z0-9-]{1,80}$/.test(slug) || !STORE_UUID.test(storeId)) return null;
   const db = getSupabase();
   const { data: saved, error } = await db.from("products").select("*")
-    .eq("store_id", STORE_ID).eq("slug", slug).eq("kind", "physical").maybeSingle<CatalogProduct>();
+    .eq("store_id", storeId).eq("slug", slug).eq("kind", "physical").maybeSingle<CatalogProduct>();
   if (error) throw new Error("Could not load store");
   if (!saved) return null;
-  const owner = preview && await ownerUser();
+  const user = preview ? await ownerUser() : null;
+  const owner = user && (await workspaceForUser(user.id)).storeId === storeId;
   const draft = saved.status !== "published" || (unsaved && !!owner);
   if (saved.status !== "published" && !owner) return null;
   const pending = unsaved && owner && saved.preview_draft && saved.preview_updated_at && Date.now() - Date.parse(saved.preview_updated_at) < PREVIEW_DRAFT_MS
@@ -143,15 +146,15 @@ export async function getStorefront(slug: string, { preview = false, unsaved = f
   }
 
   const [variantsResult, ratesResult] = await Promise.all([
-    db.from("product_variants").select("*").eq("store_id", STORE_ID).eq("product_id", product.id).eq("active", true).order("position"),
+    db.from("product_variants").select("*").eq("store_id", storeId).eq("product_id", product.id).eq("active", true).order("position"),
     product.shipping_profile_id
-      ? db.from("shipping_rates").select("*").eq("store_id", STORE_ID).eq("profile_id", product.shipping_profile_id)
+      ? db.from("shipping_rates").select("*").eq("store_id", storeId).eq("profile_id", product.shipping_profile_id)
         .eq("market", "US").eq("active", true).order("position")
       : Promise.resolve({ data: [] as ShippingRate[], error: null }),
   ]);
   if (variantsResult.error || ratesResult.error) throw new Error("Could not load store");
   const rows = pending
-    ? pending.variants.map((variant, position) => ({ ...variant, store_id: STORE_ID, product_id: product.id, position, sku: null, active: true, supplier_url: null, supplier_sku: null, created_at: "", updated_at: "" }))
+    ? pending.variants.map((variant, position) => ({ ...variant, store_id: storeId, product_id: product.id, position, sku: null, active: true, supplier_url: null, supplier_sku: null, created_at: "", updated_at: "" }))
     : (variantsResult.data ?? []) as ProductVariant[];
   const mediaBase = storefrontMediaBase();
   const options = publicOptions(rows);
@@ -161,7 +164,7 @@ export async function getStorefront(slug: string, { preview = false, unsaved = f
 
   return {
     product: {
-      id: product.id, slug: product.slug, name: product.name, tagline: product.tagline,
+      id: product.id, store_id: product.store_id, slug: product.slug, name: product.name, tagline: product.tagline,
       description: product.description, currency: product.currency, draft,
     },
     theme: product.theme as ThemeId,

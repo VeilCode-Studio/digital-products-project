@@ -22,7 +22,7 @@ export const LEGAL_TITLES: Record<LegalKind, string> = {
 export type LegalSection = { heading: string; paragraphs: string[] };
 export type LegalDocument = { title: string; intro: string; sections: LegalSection[] };
 
-export function legalDocument(kind: LegalKind, support: string): LegalDocument {
+export function legalDocument(kind: LegalKind, support: string, seller = SELLER): LegalDocument {
   switch (kind) {
     case "support":
       return {
@@ -51,7 +51,7 @@ export function legalDocument(kind: LegalKind, support: string): LegalDocument {
     case "privacy":
       return {
         title: LEGAL_TITLES.privacy,
-        intro: `This policy explains what personal information ${SELLER} collects on this site, why, and what you can do about it. It covers the digital collection and the site as a whole. Each physical product store has its own privacy policy, linked at the bottom of that store.`,
+        intro: `This policy explains what personal information ${seller} collects on this site, why, and what you can do about it. It covers the digital collection and the site as a whole. Each physical product store has its own privacy policy, linked at the bottom of that store.`,
         sections: [
           { heading: "What we collect", paragraphs: [
             "When you buy, we receive your name, email address, billing country and the details of your order. You enter card details on Stripe's secure checkout, and we never see or store them in full.",
@@ -85,7 +85,7 @@ export function legalDocument(kind: LegalKind, support: string): LegalDocument {
     case "terms":
       return {
         title: LEGAL_TITLES.terms,
-        intro: `These terms apply when you use this site or buy a digital product from ${SELLER}. Purchases from a physical product store follow that store's own terms of sale.`,
+        intro: `These terms apply when you use this site or buy a digital product from ${seller}. Purchases from a physical product store follow that store's own terms of sale.`,
         sections: [
           { heading: "What you're buying", paragraphs: [
             `Our products are digital files: guides, templates and toolkits. After payment, we email a download link to the address you gave at checkout. The link works for ${TOKEN_LIFETIME_DAYS} days and up to ${MAX_DOWNLOADS} downloads. If it runs out or the email doesn't arrive, write to us and we'll send a new one.`,
@@ -102,9 +102,9 @@ export function legalDocument(kind: LegalKind, support: string): LegalDocument {
           { heading: "Our responsibility", paragraphs: [
             "We take care to make our products accurate and useful, but they're guidance, not professional advice for your particular situation. As far as the law allows, our total liability for any purchase is limited to the amount you paid for it. We don't exclude liability that the law doesn't allow us to exclude.",
           ] },
-          { heading: "Governing law", paragraphs: [`These terms are governed by the laws of ${GOVERNING_LAW}, without affecting any mandatory consumer protections where you live.`] },
+          { heading: "Applicable protections", paragraphs: [seller === SELLER ? `These terms are governed by the laws of ${GOVERNING_LAW}, without affecting any mandatory consumer protections where you live.` : "Mandatory consumer protections where you live continue to apply to your purchase."] },
           { heading: "Changes", paragraphs: ["We may update these terms. The version shown when you buy applies to that purchase."] },
-          { heading: "Contact", paragraphs: [`${SELLER}: ${support}.`] },
+          { heading: "Contact", paragraphs: [`${seller}: ${support}.`] },
         ],
       };
     case "refunds":
@@ -130,7 +130,7 @@ export function legalDocument(kind: LegalKind, support: string): LegalDocument {
     case "data-deletion":
       return {
         title: LEGAL_TITLES["data-deletion"],
-        intro: `You can ask ${SELLER} to delete the personal information we hold about you at any time.`,
+        intro: `You can ask ${seller} to delete the personal information we hold about you at any time.`,
         sections: [
           { heading: "How to ask", paragraphs: [
             `Email ${support} with the subject “Delete my data”, from the email address you used to buy or contact us. We may ask you to confirm the request from that address so no one else can delete your information.`,

@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
 import { createPersonalToken, parseScopes, revokeConnection, updateConnectionScopes } from "@/lib/mcp/oauth";
 
@@ -8,17 +8,17 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    await requireOwner();
+    const { storeId } = await requireWorkspace();
     const body = await jsonObject(req);
     let result: object;
     switch (body.action) {
       case "create-token": {
-        const { connection, token } = await createPersonalToken(typeof body.name === "string" ? body.name : "", parseScopes(body.scopes));
+        const { connection, token } = await createPersonalToken(typeof body.name === "string" ? body.name : "", parseScopes(body.scopes), storeId);
         result = { connection, token };
         break;
       }
-      case "scopes": result = { connection: await updateConnectionScopes(body.id, parseScopes(body.scopes)) }; break;
-      case "revoke": result = await revokeConnection(body.id); break;
+      case "scopes": result = { connection: await updateConnectionScopes(body.id, parseScopes(body.scopes), storeId) }; break;
+      case "revoke": result = await revokeConnection(body.id, storeId); break;
       default: throw new HttpError(400, "Unknown action.");
     }
     return Response.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } });

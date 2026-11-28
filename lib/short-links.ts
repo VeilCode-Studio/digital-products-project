@@ -2,6 +2,7 @@
 // videos and captions. A visit redirects to the product with UTM tags, logs the click, and leaves a
 // first-party cookie so the checkout it leads to (and so the sale) is credited to the link.
 import "server-only";
+import { productPath, storePath } from "./storefront-paths";
 import { getSupabase } from "./supabase";
 import { STORE_ID } from "./store-config";
 import { HttpError } from "./http";
@@ -88,8 +89,8 @@ export async function deleteShortLink(body: Record<string, unknown>, storeId = S
 }
 
 /** Where a link sends people: its product's page (if still listed) or the home page, with UTM tags. */
-export function destinationFor(link: Pick<ShortLink, "slug" | "source" | "label">, product: Pick<CatalogProduct, "kind" | "slug" | "status"> | null) {
-  const path = product && product.status === "published" ? `/${product.kind === "physical" ? "s" : "p"}/${encodeURIComponent(product.slug)}` : "/";
+export function destinationFor(link: Pick<ShortLink, "slug" | "source" | "label"> & { store_id?: string }, product: Pick<CatalogProduct, "kind" | "slug" | "status"> & { store_id?: string } | null) {
+  const path = product && product.status === "published" ? productPath(product) : storePath(link.store_id) || "/";
   const params = new URLSearchParams({ utm_source: link.source, utm_medium: link.source === "other" ? "referral" : "social", utm_campaign: "short-link", utm_content: link.slug });
   return `${path}?${params}`;
 }

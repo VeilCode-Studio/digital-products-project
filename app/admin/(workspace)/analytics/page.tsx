@@ -1,3 +1,4 @@
+import { workspaceForUser } from "@/lib/workspace";
 import { Download } from "lucide-react";
 import { ownerPage } from "@/lib/auth";
 import { listProducts } from "@/lib/catalog";
@@ -9,9 +10,10 @@ import { AnalyticsReport } from "@/components/analytics/analytics-report";
 
 export const dynamic = "force-dynamic";
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await ownerPage();
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
   const filters = parseFilters(await searchParams);
-  const [data, products] = await Promise.all([loadAnalytics(filters), listProducts()]);
+  const [data, products] = await Promise.all([loadAnalytics(filters, storeId), listProducts(false, undefined, storeId)]);
   const exportQuery = new URLSearchParams({ range: filters.range, from: filters.from, to: filters.to, kind: filters.kind, product: filters.product });
   return <><NavSection href="/admin/analytics" />
     <div className="admin-page-heading">

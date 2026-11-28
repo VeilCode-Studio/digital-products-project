@@ -1,3 +1,4 @@
+import { storePath } from "@/lib/storefront-paths";
 import type { NextRequest } from "next/server";
 import { renewOwnerSession } from "@/lib/owner-session";
 import { NextResponse } from "next/server";
@@ -21,9 +22,14 @@ export async function proxy(request: NextRequest) {
         if (path.startsWith("/admin")) return NextResponse.redirect(new URL("/admin", getEnv().APP_URL));
         const base = storefrontPath(product);
         // Related products belong to their own platform/custom address.
-        if (/^\/(p|s)\/[a-z0-9-]+(?:\/|$)/.test(path) && path !== base && !path.startsWith(`${base}/`)) {
+        if (/^\/(?:shops\/[0-9a-f-]{36}\/)?(p|s)\/[a-z0-9-]+(?:\/|$)/.test(path) && path !== base && !path.startsWith(`${base}/`)) {
           const target = new URL(path + request.nextUrl.search, getEnv().APP_URL);
           return NextResponse.redirect(target);
+        }
+        const namespace = storePath(product.store_id);
+        if (namespace && ["/thank-you", "/privacy", "/terms", "/refunds", "/support", "/data-deletion"].some(suffix => path === namespace + suffix)) {
+          const url = request.nextUrl.clone(); url.pathname = path.slice(namespace.length);
+          return NextResponse.redirect(url, 308);
         }
         const destination = domainPath(path, product);
         if (!destination) return new NextResponse("Page not found", { status: 404 });
@@ -42,10 +48,10 @@ export async function proxy(request: NextRequest) {
       }
     }
     // Old platform product links resolve to the primary domain. Draft previews always stay here.
-    const match = /^\/(s|p)\/([a-z0-9-]+)$/.exec(request.nextUrl.pathname);
+    const match = /^\/(?:shops\/([0-9a-f-]{36})\/)?(s|p)\/([a-z0-9-]+)$/.exec(request.nextUrl.pathname);
     if (match && !request.nextUrl.searchParams.has("preview")) {
-      const { data } = await getSupabase().from("products").select("*").eq("store_id", STORE_ID).eq("slug", match[2]).eq("status", "published").maybeSingle();
-      if (data && (data.kind === "physical" ? "s" : "p") === match[1]) {
+      const { data } = await getSupabase().from("products").select("*").eq("store_id", match[1] ?? STORE_ID).eq("slug", match[3]).eq("status", "published").maybeSingle();
+      if (data && (data.kind === "physical" ? "s" : "p") === match[2]) {
         const target = new URL(await publicProductUrl(data));
         if (target.hostname !== platform) { target.search = request.nextUrl.search; return NextResponse.redirect(target, 307); }
       }

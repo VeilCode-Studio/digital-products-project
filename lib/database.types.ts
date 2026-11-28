@@ -119,6 +119,9 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      provision_workspace: { Args: { p_user_id: string; p_name: string; p_email: string }; Returns: string };
+      consume_workspace_download: { Args: { p_token_hash: string }; Returns: { product_id: string; product_snapshot: DeliveryProduct | null; store_id: string }[] };
+      consume_workspace_gift_download: { Args: { p_token_hash: string; p_max: number }; Returns: { gift_product_id: string | null; store_id: string }[] };
       claim_domain_registration: { Args: { p_id: string }; Returns: DomainPurchase[] };
       consume_gift_download: { Args: { p_token_hash: string; p_max: number }; Returns: { gift_product_id: string | null }[] };
       record_short_link_click: { Args: { p_link_id: string; p_country: string | null; p_device: string | null; p_in_app: string | null }; Returns: undefined };

@@ -1,4 +1,6 @@
 import "server-only";
+import { getStore } from "./catalog";
+import { senderName } from "./physical-email";
 import { randomBytes } from "node:crypto";
 import { Resend } from "resend";
 import { getSupabase } from "./supabase";
@@ -59,7 +61,7 @@ export async function setGift(productId: unknown, storeId = STORE_ID) {
   return { giftProductId: id };
 }
 
-function buildGiftEmail(gift: Gift, downloadUrl: string, unsubscribeUrl: string | null) {
+function buildGiftEmail(gift: Gift, downloadUrl: string, unsubscribeUrl: string | null, seller?: string) {
   const limit = `This link works for ${TOKEN_LIFETIME_DAYS} days and up to ${MAX_DOWNLOADS} downloads.`;
   const footerHtml = unsubscribeUrl ? `<p style="font-size:12px;color:#737373">You asked to hear about new products and offers. <a style="color:#737373" href="${escape(unsubscribeUrl)}">Unsubscribe</a></p>` : "";
   return {
@@ -69,7 +71,7 @@ function buildGiftEmail(gift: Gift, downloadUrl: string, unsubscribeUrl: string 
 <p><a style="display:inline-block;background:#2B59FF;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600" href="${escape(downloadUrl)}">Download ${escape(gift.shortName)}</a></p>
 <p>${limit}</p>
 <p>Questions? Just reply to this email.</p>
-<p>Frank<br>PodStore</p>
+<p>${seller ? escape(seller) : "Frank<br>PodStore"}</p>
 ${footerHtml}
 </div>`,
     text: `Here's ${gift.shortName}, as promised.
@@ -79,8 +81,7 @@ ${limit}
 
 Questions? Just reply to this email.
 
-Frank
-PodStore${unsubscribeUrl ? `\n\nYou asked to hear about new products and offers. Unsubscribe: ${unsubscribeUrl}` : ""}`,
+${seller || "Frank\nPodStore"}${unsubscribeUrl ? `\n\nYou asked to hear about new products and offers. Unsubscribe: ${unsubscribeUrl}` : ""}`,
   };
 }
 function escape(value: string) {
@@ -103,11 +104,12 @@ async function sendGiftEmail(subscriber: Subscriber, gift: Gift, token: string) 
   const download = new URL("/api/free-download", env.APP_URL);
   download.searchParams.set("token", token);
   const unsubscribe = subscriber.marketing_consent ? unsubscribeUrl(subscriber.unsubscribe_token) : null;
-  const message = buildGiftEmail(gift, download.toString(), unsubscribe);
+  const store = subscriber.store_id !== STORE_ID ? await getStore(subscriber.store_id) : null;
+  const message = buildGiftEmail(gift, download.toString(), unsubscribe, store?.name);
   const oneClick = new URL("/api/unsubscribe", env.APP_URL);
   oneClick.searchParams.set("token", subscriber.unsubscribe_token);
   const { data, error } = await new Resend(env.RESEND_API_KEY).emails.send({
-    from: "PodStore <orders@mail.veilcode.studio>", replyTo: "support@veilcode.studio", to: subscriber.email,
+    from: `${store ? senderName(store.name) : "PodStore"} <orders@mail.veilcode.studio>`, replyTo: store?.support_email || "support@veilcode.studio", to: subscriber.email,
     ...message,
     subject: deployment.production ? message.subject : `[${deployment.env === "preview" ? "Preview" : "Dev"}] ${message.subject}`,
     // One-click unsubscribe (RFC 8058), which Gmail and Yahoo expect from senders of marketing mail.
@@ -121,18 +123,18 @@ async function sendGiftEmail(subscriber: Subscriber, gift: Gift, token: string) 
  * A visitor asks for the free download. Always answers the same way whether or not the address is
  * already on the list, so the form can't be used to find out who has signed up.
  */
-export async function subscribe(body: Record<string, unknown>) {
+export async function subscribe(body: Record<string, unknown>, storeId = STORE_ID) {
   // A hidden field people never see; bots fill it in. Pretend it worked and do nothing.
   if (typeof body.website === "string" && body.website.trim()) return { ok: true };
   if (!validEmail(body.email)) throw new HttpError(400, "Enter a valid email address.");
   const email = body.email.trim().toLowerCase();
   const marketing = body.marketing === true;
-  const gift = await currentGift();
+  const gift = await currentGift(storeId);
   if (!gift) throw new HttpError(404, "The free download isn't available right now.");
 
   const db = getSupabase();
   const now = new Date();
-  const { data: found } = await db.from("subscribers").select("*").eq("store_id", STORE_ID).eq("email", email).maybeSingle();
+  const { data: found } = await db.from("subscribers").select("*").eq("store_id", storeId).eq("email", email).maybeSingle();
   let subscriber = found as Subscriber | null;
   if (subscriber?.last_sent_at && now.getTime() - Date.parse(subscriber.last_sent_at) < RESEND_COOLDOWN_MS) return { ok: true };
 
@@ -145,7 +147,7 @@ export async function subscribe(body: Record<string, unknown>) {
     subscriber = data as Subscriber;
   } else {
     const { data, error } = await db.from("subscribers").insert({
-      store_id: STORE_ID, email, source: "free-download", unsubscribe_token: randomBytes(24).toString("base64url"), marketing_consent: false, ...changes,
+      store_id: storeId, email, source: "free-download", unsubscribe_token: randomBytes(24).toString("base64url"), marketing_consent: false, ...changes,
     }).select("*").single();
     if (error || !data) throw new HttpError(500, "Something went wrong. Please try again.");
     subscriber = data as Subscriber;
@@ -161,11 +163,12 @@ export async function subscribe(body: Record<string, unknown>) {
 
 /** One use of a free download link; null when it's expired, used up or unknown. */
 export async function consumeGiftDownload(token: string): Promise<CatalogProduct | null> {
-  const { data, error } = await getSupabase().rpc("consume_gift_download", { p_token_hash: hashToken(token), p_max: MAX_DOWNLOADS });
+  const { data, error } = await getSupabase().rpc("consume_workspace_gift_download", { p_token_hash: hashToken(token), p_max: MAX_DOWNLOADS });
   if (error) throw new Error("Could not check the download");
-  const giftId = (Array.isArray(data) ? data[0] : data)?.gift_product_id as string | undefined;
+  const grant = Array.isArray(data) ? data[0] : data;
+  const giftId = grant?.gift_product_id;
   if (!giftId) return null;
-  const { data: product } = await getSupabase().from("products").select("*").eq("store_id", STORE_ID).eq("id", giftId).maybeSingle();
+  const { data: product } = await getSupabase().from("products").select("*").eq("store_id", grant!.store_id).eq("id", giftId).maybeSingle();
   const gift = product as CatalogProduct | null;
   return gift?.storage_path ? gift : null;
 }

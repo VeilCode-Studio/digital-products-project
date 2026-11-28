@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { productPath } from "@/lib/storefront-paths";
 import Link from "next/link";
 import { ArrowUpRight, TicketPercent } from "lucide-react";
 import { CopyCode } from "@/components/site/copy-code";
@@ -24,7 +25,7 @@ export function ThankYouOffers({ offers, accent }: { offers: Offers; accent?: st
     </div>}
     {offers.products.length > 0 && <ul className="tyo-products">
       {offers.products.map((product) => <li key={product.id}>
-        <Link href={`/p/${product.slug}`} className="tyo-product">
+        <Link href={productPath(product)} className="tyo-product">
           {product.cover_path && <span className="tyo-cover"><Image src={coverOf(product.id, product.revision)} alt="" width={240} height={240} sizes="120px" /></span>}
           <span className="tyo-info">
             <strong>{product.name}</strong>

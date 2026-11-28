@@ -1,4 +1,5 @@
 import "server-only";
+import { STORE_ID } from "../store-config";
 import { getSupabase } from "../supabase";
 import type { McpActivity } from "../database.types";
 
@@ -10,8 +11,11 @@ export async function logActivity(connectionId: string, tool: string, summary: s
   } catch { /* the log is best effort */ }
 }
 
-export async function recentActivity(limit = 60) {
-  const { data, error } = await getSupabase().from("mcp_activity").select("*").order("created_at", { ascending: false }).limit(limit);
+export async function recentActivity(limit = 60, storeId = STORE_ID) {
+  const { data: connections, error: connectionError } = await getSupabase().from("mcp_connections").select("id").eq("store_id", storeId);
+  if (connectionError) throw new Error("Could not load assistant connections");
+  if (!connections?.length) return [];
+  const { data, error } = await getSupabase().from("mcp_activity").select("*").in("connection_id", connections.map(c => c.id)).order("created_at", { ascending: false }).limit(limit);
   if (error) throw new Error("Could not load assistant activity");
   return (data ?? []) as McpActivity[];
 }

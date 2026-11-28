@@ -152,17 +152,23 @@ export const storageRemove = vi.fn();
 export const storageCopy = vi.fn();
 export const rpc = vi.fn(async (name: string, args: Row) => {
   if (state.dbError) return { data: null, error: { code: "08000" } };
+  if (name === "provision_workspace") {
+    const existing = state.stores.find(s => s.owner_user_id === args.p_user_id);
+    if (existing) return { data: existing.id, error: null };
+    const row = { id: randomUUID(), owner_user_id: args.p_user_id as string, name: args.p_name as string, support_email: args.p_email as string, tagline: "", bio: "", website_url: null };
+    state.stores.push(row); return { data: row.id, error: null };
+  }
   if (name === "claim_domain_registration") {
     const row = state.domain_purchases.find((purchase) => purchase.id === args.p_id && purchase.status === "paid");
     if (!row) return { data: [], error: null };
     row.status = "registering"; row.updated_at = new Date().toISOString();
     return { data: [{ ...row }], error: null };
   }
-  if (name === "consume_gift_download") {
+  if (name === "consume_gift_download" || name === "consume_workspace_gift_download") {
     const row = state.subscribers.find((entry) => entry.download_token_hash === args.p_token_hash && Number(entry.download_count) < Number(args.p_max) && Date.parse(String(entry.token_expires_at)) > Date.now());
     if (!row) return { data: [], error: null };
     row.download_count = Number(row.download_count) + 1;
-    return { data: [{ gift_product_id: row.gift_product_id }], error: null };
+    return { data: [{ gift_product_id: row.gift_product_id, store_id: row.store_id }], error: null };
   }
   if (name === "record_short_link_click") {
     const link = state.short_links.find((row) => row.id === args.p_link_id);
@@ -180,11 +186,11 @@ export const rpc = vi.fn(async (name: string, args: Row) => {
     if (!existing) state.payment_connections.push(connection as PaymentConnection);
     return { data: connection.id, error: null };
   }
-  if (name === "consume_download") {
+  if (name === "consume_download" || name === "consume_workspace_download") {
     const order = state.orders.find((order) => order.download_token_hash === args.p_token_hash && order.download_count < order.max_downloads && Date.parse(order.token_expires_at ?? "") > Date.now());
     if (!order) return { data: [], error: null };
     order.download_count++;
-    return { data: [{ product_id: order.product_id, product_snapshot: order.product_snapshot }], error: null };
+    return { data: [{ product_id: order.product_id, product_snapshot: order.product_snapshot, store_id: order.store_id }], error: null };
   }
   if (name === "claim_delivery") {
     const order = state.orders.find((order) => order.stripe_session_id === args.p_session_id && (args.p_force || order.email_status === "pending") && (!order.delivery_locked_until || Date.parse(order.delivery_locked_until) <= Date.now()));
@@ -220,6 +226,10 @@ export const rpc = vi.fn(async (name: string, args: Row) => {
   }
   throw new Error(`Unexpected RPC: ${name}`);
 });
+export const signUp = vi.fn();
+export const resetPassword = vi.fn();
+export const setSession = vi.fn();
+export const updateUser = vi.fn();
 export const getUser = vi.fn();
 export const signIn = vi.fn();
 export const signOut = vi.fn();
@@ -227,7 +237,7 @@ export const refreshSession = vi.fn();
 export const supabase = {
   from: vi.fn((table: string) => new Query(table)), rpc,
   storage: { from: vi.fn(() => ({ createSignedUrl: signUrl, createSignedUploadUrl: signedUpload, info: storageInfo, upload, download: storageDownload, exists: storageExists, list: storageList, remove: storageRemove, copy: storageCopy })) },
-  auth: { getUser, signInWithPassword: signIn, signOut, refreshSession },
+  auth: { signUp, resetPasswordForEmail: resetPassword, setSession, updateUser, getUser, signInWithPassword: signIn, signOut, refreshSession },
 };
 export const sendEmail = vi.fn();
 export const constructEvent = vi.fn();
@@ -299,6 +309,10 @@ export function resetFakes() {
   oauthToken.mockReset().mockResolvedValue({ stripe_user_id: "acct_seller", scope: "read_write", livemode: false });
   oauthDeauthorize.mockReset().mockResolvedValue({ stripe_user_id: "acct_seller" });
   oauthAuthorizeUrl.mockReset().mockImplementation((params: Record<string, string>) => `https://connect.stripe.com/oauth/authorize?${new URLSearchParams(params)}`);
+  signUp.mockReset().mockResolvedValue({ data: { user: null, session: null }, error: null });
+  resetPassword.mockReset().mockResolvedValue({ data: {}, error: null });
+  setSession.mockReset().mockResolvedValue({ data: { user: null, session: null }, error: { message: "Invalid session" } });
+  updateUser.mockReset().mockResolvedValue({ data: {}, error: null });
   getUser.mockReset().mockResolvedValue({ data: { user: { id: OWNER_ID, email: "owner@example.com" } }, error: null });
   signIn.mockReset().mockResolvedValue({ data: { user: { id: OWNER_ID }, session: { access_token: "owner-token", refresh_token: "owner-refresh", expires_in: 3600 } }, error: null });
   refreshSession.mockReset();

@@ -1,4 +1,5 @@
 import "server-only";
+import { STORE_ID } from "./store-config";
 import { discountFromSession } from "./discount-codes";
 import type Stripe from "stripe";
 import { getStripe } from "./stripe";
@@ -72,7 +73,7 @@ export async function recordPhysicalOrder(session: Stripe.Checkout.Session, chec
     await sendOrderConfirmation(order);
     await markConfirmationSent(order.id);
   }
-  if (inserted && checkout.attribution) {
+  if (inserted && checkout.attribution && checkout.store_id === STORE_ID) {
     // Ads measurement must never hold up an order: log and carry on.
     let brand = null;
     try { brand = parseBrand((await getCatalogProduct(checkout.product_id))?.brand, checkout.store_id, checkout.product_id); } catch { brand = null; }

@@ -19,7 +19,7 @@ function sandbox() {
   return new URL(getEnv().APP_URL).origin;
 }
 
-export async function startDomainTestCheckout(input: Record<string, unknown>, ownerId: string) {
+export async function startDomainTestCheckout(input: Record<string, unknown>, ownerId: string, storeId = STORE_ID) {
   const origin = sandbox();
   if (typeof input.requestId !== "string" || !DOMAIN_REQUEST_ID.test(input.requestId)) throw new HttpError(400, "Start a new payment test.");
   const [quote] = await searchDomain(input.hostname);
@@ -32,10 +32,10 @@ export async function startDomainTestCheckout(input: Record<string, unknown>, ow
   }
   const amount = Math.round(quote.price * 100);
   if (amount < 50 || amount > 10_000_000) throw new HttpError(400, "Choose a domain priced from $0.50 to $100,000 for this payment test.");
-  const hash = createHash("sha256").update(`${origin}:${ownerId}:${input.requestId}`).digest("hex");
+  const hash = createHash("sha256").update(`${origin}:${storeId}:${ownerId}:${input.requestId}`).digest("hex");
   const suffix = hash.slice(0, 8).replace(/[0-9a-f]/g, (digit) => String.fromCharCode(97 + parseInt(digit, 16)));
   const metadata = {
-    app: DOMAIN_TEST_APP, store_id: STORE_ID, owner_id: ownerId, origin,
+    app: DOMAIN_TEST_APP, store_id: storeId, owner_id: ownerId, origin,
     domain: quote.domain, amount: String(amount), years: String(quote.years), renewal_amount: String(Math.round(quote.renewalPrice * 100)),
     request_id: input.requestId,
     renewal_requested: input.renew === true ? "true" : "false",
@@ -56,7 +56,7 @@ export async function startDomainTestCheckout(input: Record<string, unknown>, ow
 }
 
 /** Stripe is the durable source of payment status. This read never registers or fulfils a domain. */
-export async function domainTestPayment(id: unknown, ownerId: string): Promise<DomainTestPayment> {
+export async function domainTestPayment(id: unknown, ownerId: string, storeId = STORE_ID): Promise<DomainTestPayment> {
   const origin = sandbox();
   if (typeof id !== "string" || !/^cs_test_[a-zA-Z0-9]{1,240}$/.test(id)) throw new HttpError(400, "Invalid test checkout.");
   let session: Stripe.Checkout.Session;
@@ -64,7 +64,7 @@ export async function domainTestPayment(id: unknown, ownerId: string): Promise<D
   catch { throw new HttpError(503, "Stripe could not confirm the payment yet. Check again shortly."); }
   const meta = session.metadata;
   const amount = Number(meta?.amount);
-  if (session.livemode !== false || session.mode !== "payment" || meta?.app !== DOMAIN_TEST_APP || meta.store_id !== STORE_ID ||
+  if (session.livemode !== false || session.mode !== "payment" || meta?.app !== DOMAIN_TEST_APP || meta.store_id !== storeId ||
       meta.owner_id !== ownerId || meta.origin !== origin || !normalizeDomain(meta.domain) ||
       session.client_reference_id !== meta.request_id || !Number.isInteger(amount) || amount < 50 ||
       session.currency !== "usd" || session.amount_total !== amount || session.amount_subtotal !== amount) {

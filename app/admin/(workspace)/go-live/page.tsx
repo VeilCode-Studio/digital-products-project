@@ -1,3 +1,4 @@
+import { workspaceForUser } from "@/lib/workspace";
 import { ownerPage } from "@/lib/auth";
 import { liveChecks } from "@/lib/go-live";
 import { NavSection } from "@/components/admin-nav";
@@ -7,9 +8,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Go-live checklist" };
 
 export default async function GoLivePage() {
-  await ownerPage();
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
   let live: Awaited<ReturnType<typeof liveChecks>> | null = null;
-  try { live = await liveChecks(); }
+  try { live = await liveChecks(storeId); }
   catch (error) { console.error("Go-live checks unavailable", error instanceof Error ? error.message.slice(0, 200) : ""); }
   return <><NavSection href="/admin/go-live" />
     <div className="admin-page-heading">

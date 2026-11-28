@@ -20,10 +20,12 @@ export async function domainProduct(host: string) {
   if (!domainsEnabled()) return null;
   const hostname = normalizeDomain(host);
   if (!hostname) return null;
-  const { data, error } = await getSupabase().from("store_domains").select("*").eq("store_id", STORE_ID).eq("hostname", hostname).eq("status", "active").maybeSingle();
+  const { data, error } = await getSupabase().from("store_domains").select("*").eq("hostname", hostname).eq("status", "active").maybeSingle();
   if (error) throw new HttpError(503, "Store domains are temporarily unavailable.");
   if (!data) return null;
-  const product = await domainTarget(data.product_id);
+  let product;
+  try { product = await domainTarget(data.product_id, data.store_id); }
+  catch (error) { if (error instanceof HttpError && error.status === 404) return null; throw error; }
   return product.status === "published" ? product : null;
 }
 
@@ -35,15 +37,15 @@ export async function domainTarget(id: unknown, storeId = STORE_ID) {
   return data;
 }
 
-export async function primaryDomain(productId: string): Promise<StoreDomain | null> {
+export async function primaryDomain(productId: string, storeId = STORE_ID): Promise<StoreDomain | null> {
   if (!domainsEnabled()) return null;
-  const { data, error } = await getSupabase().from("store_domains").select("*").eq("store_id", STORE_ID).eq("product_id", productId).eq("status", "active").maybeSingle();
+  const { data, error } = await getSupabase().from("store_domains").select("*").eq("store_id", storeId).eq("product_id", productId).eq("status", "active").maybeSingle();
   // Public platform pages remain usable during domain service outages.
   return error ? null : data;
 }
 
-export async function publicProductUrl(product: Pick<CatalogProduct, "id" | "slug" | "kind">) {
-  const domain = await primaryDomain(product.id);
+export async function publicProductUrl(product: Pick<CatalogProduct, "id" | "slug" | "kind"> & { store_id?: string }) {
+  const domain = await primaryDomain(product.id, product.store_id);
   return domain ? `https://${domain.hostname}/` : new URL(storefrontPath(product), getEnv().APP_URL).toString();
 }
 
@@ -58,8 +60,8 @@ export async function shopperOrigin(req: Request, productId?: string) {
 }
 
 /** Keep the deployment origin for webhook isolation; these URLs are only browser return destinations. */
-export async function checkoutDestination(product: Pick<CatalogProduct, "id" | "slug" | "kind">) {
-  const domain = await primaryDomain(product.id);
+export async function checkoutDestination(product: Pick<CatalogProduct, "id" | "slug" | "kind"> & { store_id?: string }) {
+  const domain = await primaryDomain(product.id, product.store_id);
   const origin = domain ? `https://${domain.hostname}` : getEnv().APP_URL;
   const base = domain ? "" : storefrontPath(product);
   return { origin, base };

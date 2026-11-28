@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { NavSection } from "@/components/admin-nav";
 import { NewStoreForm } from "@/components/store-editor/new-store-form";
 import { listResearch } from "@/lib/research";
@@ -8,8 +9,9 @@ import "../../../store-editor.css";
 
 export const dynamic = "force-dynamic";
 export default async function NewStorePage() {
-  await ownerPage();
-  const research = await listResearch();
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const research = await listResearch(storeId);
   // Physical ideas that are still in play and don't have a store yet.
   const ideas = research.filter((idea) => idea.kind !== "digital" && !idea.store_product_id && idea.stage !== "rejected")
     .map((idea) => ({ id: idea.id, title: idea.title, stage: idea.stage }));

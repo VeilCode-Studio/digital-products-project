@@ -21,18 +21,20 @@ import { ProductReviews } from "@/components/site/product-reviews";
 import { digitalProductLd } from "@/lib/seo";
 import { publicProductUrl } from "@/lib/domains";
 import { getEnv } from "@/lib/env";
+import { STORE_ID } from "@/lib/store-config";
+import { productPath, storePath } from "@/lib/storefront-paths";
 import { monaSans } from "../../studio-fonts";
 import "../../studio.css";
 
 export const dynamic = "force-dynamic";
 
-type Params = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
+type Params = { params: Promise<{ slug: string; storeId?: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 // Shared by generateMetadata and the page so a request loads the product once.
-const loadProduct = cache((slug: string, preview: boolean) => getDigitalPage(slug, preview));
+const loadProduct = cache((slug: string, preview: boolean, storeId: string) => getDigitalPage(slug, preview, storeId));
 async function load({ params, searchParams }: Params) {
-  const [{ slug }, query] = await Promise.all([params, searchParams]);
-  return { product: await loadProduct(slug, query.preview === "1"), query };
+  const [{ slug, storeId = STORE_ID }, query] = await Promise.all([params, searchParams]);
+  return { product: await loadProduct(slug, query.preview === "1", storeId), query };
 }
 
 export async function generateMetadata(props: Params): Promise<Metadata> {
@@ -60,8 +62,8 @@ export default async function ProductPage(props: Params) {
   const draft = product?.status !== "published";
   if (!product || (!draft && product.price_amount === null)) notFound();
   const [store, products, gift, ratings] = await Promise.all([
-    getStore(), listProducts(true, "digital"), currentGift().catch(() => null),
-    draft ? null : approvedReviews(product.id).catch(() => null),
+    getStore(product.store_id), listProducts(true, "digital", product.store_id), currentGift(product.store_id).catch(() => null),
+    draft ? null : approvedReviews(product.id, product.store_id).catch(() => null),
   ]);
   const cancelled = query.checkout === "cancelled";
   const price = product.price_amount === null ? "Price not set" : formatMoney(product.price_amount, product.currency);
@@ -139,7 +141,7 @@ export default async function ProductPage(props: Params) {
 
       {ratings && <ProductReviews reviews={ratings.reviews} average={ratings.average} />}
 
-      {!draft && gift && gift.id !== product.id && <GiftSignup name={gift.shortName} tagline={gift.tagline} />}
+      {!draft && gift && gift.id !== product.id && <GiftSignup storeId={product.store_id} name={gift.shortName} tagline={gift.tagline} />}
 
       {related.length > 0 && (
         <section className="vc-related vc-wrap" aria-labelledby="vc-related-title">
@@ -155,7 +157,7 @@ export default async function ProductPage(props: Params) {
 
       <footer className="vc-pd-foot vc-wrap">
         <span>© {new Date().getFullYear()} {store.name}</span>
-        <Link href="/privacy">Privacy policy</Link>
+        <Link href={`${storePath(product.store_id)}/privacy`}>Privacy policy</Link>
       </footer>
       {!draft && (
         <StickyBuy targetId="buy">
@@ -170,7 +172,7 @@ export default async function ProductPage(props: Params) {
 /** A smaller card than the homepage's, so suggestions never compete with the product above them. */
 function RelatedTile({ product, delay }: { product: CatalogProduct; delay: number }) {
   return (
-    <Link href={`/p/${product.slug}`} className="vc-related-card" data-reveal data-delay={delay % 2 ? "1" : undefined}>
+    <Link href={productPath(product)} className="vc-related-card" data-reveal data-delay={delay % 2 ? "1" : undefined}>
       <div className="vc-related-thumb">
         {product.cover_path
           ? <Image src={new URL(coverSrc(product), getEnv().APP_URL).toString()} alt="" fill unoptimized sizes="(max-width: 600px) 96px, (max-width: 900px) 44vw, 22vw" />

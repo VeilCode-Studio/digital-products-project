@@ -1,3 +1,4 @@
+import { productPath } from "@/lib/storefront-paths";
 import Image from "next/image";
 import Script from "next/script";
 import { Lock } from "lucide-react";
@@ -19,8 +20,8 @@ export function StoreFrame({ store, children, nav = [], announcement, onStorePag
 }) {
   // A draft is only visible in the owner's preview; keep its links in preview too.
   const query = store.product.draft ? "?preview=1" : "";
-  const home = `/s/${store.product.slug}${query}`;
-  const policyBase = `/s/${store.product.slug}/policies`;
+  const home = `${productPath({ ...store.product, kind: "physical" })}${query}`;
+  const policyBase = `${productPath({ ...store.product, kind: "physical" })}/policies`;
   return (
     <div className={`st ${storeFontVariables}`} data-theme={store.theme} data-dark={THEME_TOKENS[store.theme].dark || undefined} style={themeVariables(store.theme, store.brand) as React.CSSProperties}>
       {store.product.draft && <p className="st-draft" role="note">Draft preview · only you can see this page</p>}

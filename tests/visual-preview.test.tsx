@@ -4,7 +4,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import { resetFakes, seedProduct, storageExists } from "./fakes";
+import { resetFakes, seedProduct, seedPhysicalStore, seedPhysicalOrder, state, storageExists } from "./fakes";
+import { startPhysicalCheckout } from "../lib/physical-checkout";
+import PhysicalThankYou from "../app/s/[slug]/thank-you/page";
 
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "fixture-token" }) }) }));
 vi.mock("next/navigation", () => ({
@@ -21,6 +23,16 @@ import EditProduct from "../app/admin/(workspace)/products/[id]/page";
 import { AdminShell } from "../components/admin-shell";
 import { PaymentSettings } from "../components/payment-settings";
 import { DomainsView } from "../components/domains-view";
+
+it("shows payment confirmation only after the physical order has been recorded", async () => {
+  resetFakes(); seedPhysicalStore();
+  const checkoutId = crypto.randomUUID();
+  await startPhysicalCheckout({ productId: "glow-lamp", variantId: "0b5e3c3e-6f4a-4f63-9a3c-1f0d3a1e2b01", quantity: 1, checkoutId });
+  const props = { params: Promise.resolve({ slug: "glow" }), searchParams: Promise.resolve({ ref: checkoutId }) };
+  expect(renderToStaticMarkup(await PhysicalThankYou(props))).toContain("Checking your payment");
+  seedPhysicalOrder({ stripe_session_id: state.checkouts[0].stripe_session_id! });
+  expect(renderToStaticMarkup(await PhysicalThankYou(props))).toContain("Thank you. Your order is confirmed.");
+});
 
 it("loads related-product covers from the platform when the product page is on a custom domain", async () => {
   resetFakes();
