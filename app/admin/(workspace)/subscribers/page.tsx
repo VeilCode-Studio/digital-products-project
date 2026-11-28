@@ -1,4 +1,5 @@
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { listProducts, getStore } from "@/lib/catalog";
 import { listSubscribers } from "@/lib/subscribers";
 import { NavSection } from "@/components/admin-nav";
@@ -8,8 +9,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Subscribers" };
 
 export default async function SubscribersPage() {
-  await ownerPage();
-  const [store, products, list] = await Promise.all([getStore(), listProducts(false, "digital"), listSubscribers().catch(() => null)]);
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const [store, products, list] = await Promise.all([getStore(storeId), listProducts(false, "digital", storeId), listSubscribers(storeId).catch(() => null)]);
   return <><NavSection href="/admin/subscribers" />
     <div className="admin-page-heading">
       <div><span className="eyebrow">PEOPLE WHO ASKED TO HEAR FROM YOU</span><h1>Subscribers</h1><p>Visitors swap their email for a free download. Those who tick the box can hear about launches and offers.</p></div>

@@ -124,8 +124,8 @@ export async function reviewContext(token: unknown) {
   if (!order) return null;
   const found = order as Order;
   const [{ data: product }, { data: review }] = await Promise.all([
-    db.from("products").select("*").eq("id", found.product_id).maybeSingle(),
-    db.from("reviews").select("*").eq("order_id", found.id).maybeSingle(),
+    db.from("products").select("*").eq("id", found.product_id).eq("store_id", found.store_id).maybeSingle(),
+    db.from("reviews").select("*").eq("order_id", found.id).eq("store_id", found.store_id).maybeSingle(),
   ]);
   const catalog = product as CatalogProduct | null;
   const suggestedName = found.customer_name ? found.customer_name.trim().split(/\s+/).map((part, index) => index ? `${part[0]}.` : part).slice(0, 2).join(" ") : "";
@@ -146,8 +146,10 @@ export async function submitReview(body: Record<string, unknown>) {
   const db = getSupabase();
   if (context.review) {
     if (context.review.status !== "pending") throw new HttpError(409, "Your review is already published. Thank you!");
-    const { error } = await db.from("reviews").update(values).eq("id", context.review.id);
+    const { data, error } = await db.from("reviews").update(values).eq("id", context.review.id)
+      .eq("store_id", context.order.store_id).eq("status", "pending").select("id").maybeSingle();
     if (error) throw new HttpError(500, "Could not save your review. Please try again.");
+    if (!data) throw new HttpError(409, "Your review changed. Reload before editing it again.");
   } else {
     const { error } = await db.from("reviews").insert({ store_id: context.order.store_id, order_id: context.order.id, product_id: context.productId, status: "pending", ...values });
     if (error) throw new HttpError(500, "Could not save your review. Please try again.");
@@ -155,27 +157,27 @@ export async function submitReview(body: Record<string, unknown>) {
   return { ok: true };
 }
 
-export async function listReviews() {
-  const { data, error } = await getSupabase().from("reviews").select("*").eq("store_id", STORE_ID).order("created_at", { ascending: false }).limit(500);
+export async function listReviews(storeId = STORE_ID) {
+  const { data, error } = await getSupabase().from("reviews").select("*").eq("store_id", storeId).order("created_at", { ascending: false }).limit(500);
   if (error) throw new HttpError(503, "Reviews are temporarily unavailable.");
   return (data ?? []) as Review[];
 }
 
-export async function setReviewStatus(body: Record<string, unknown>) {
+export async function setReviewStatus(body: Record<string, unknown>, storeId = STORE_ID) {
   if (typeof body.id !== "string" || !["approved", "hidden", "pending"].includes(String(body.status))) throw new HttpError(400, "Choose a review and what to do with it.");
   const status = body.status as Review["status"];
   const now = new Date().toISOString();
   const { data, error } = await getSupabase().from("reviews").update({ status, updated_at: now, approved_at: status === "approved" ? now : null })
-    .eq("id", body.id).eq("store_id", STORE_ID).select("*").maybeSingle();
+    .eq("id", body.id).eq("store_id", storeId).select("*").maybeSingle();
   if (error) throw new HttpError(500, "Could not save the change.");
   if (!data) throw new HttpError(404, "That review no longer exists.");
   return data as Review;
 }
 
 /** Approved reviews for a product page, newest first, with the average. */
-export async function approvedReviews(productId: string) {
+export async function approvedReviews(productId: string, storeId = STORE_ID) {
   const { data } = await getSupabase().from("reviews").select("id, rating, title, body, display_name, created_at")
-    .eq("store_id", STORE_ID).eq("product_id", productId).eq("status", "approved").order("created_at", { ascending: false }).limit(50);
+    .eq("store_id", storeId).eq("product_id", productId).eq("status", "approved").order("created_at", { ascending: false }).limit(50);
   const reviews = (data ?? []) as PublicReview[];
   const average = reviews.length ? Math.round(reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length * 10) / 10 : 0;
   return { reviews, count: reviews.length, average };

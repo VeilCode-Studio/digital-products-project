@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
 import { createShortLink, deleteShortLink, updateShortLink } from "@/lib/short-links";
 
@@ -8,13 +8,13 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    await requireOwner();
+    const { storeId } = await requireWorkspace();
     const body = await jsonObject(req, 4_000);
     let result: unknown;
     switch (body.action) {
-      case "create": result = { link: await createShortLink(body) }; break;
-      case "update": result = { link: await updateShortLink(body) }; break;
-      case "delete": result = await deleteShortLink(body); break;
+      case "create": result = { link: await createShortLink(body, storeId) }; break;
+      case "update": result = { link: await updateShortLink(body, storeId) }; break;
+      case "delete": result = await deleteShortLink(body, storeId); break;
       default: throw new HttpError(400, "Unknown action.");
     }
     return Response.json({ ok: true, ...(result as object) }, { headers: { "Cache-Control": "no-store" } });

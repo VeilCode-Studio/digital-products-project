@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
 import { apiError } from "@/lib/http";
 import { csvCell } from "@/lib/csv";
 import { listSubscribers } from "@/lib/subscribers";
@@ -8,8 +8,8 @@ export const runtime = "nodejs";
 /** The list as a spreadsheet, with each person's consent, ready for an email tool. */
 export async function GET() {
   try {
-    await requireOwner();
-    const { subscribers } = await listSubscribers();
+    const { storeId } = await requireWorkspace();
+    const { subscribers } = await listSubscribers(storeId);
     const rows: (string | number | null)[][] = [
       ["Email", "Marketing emails", "Consented at", "Consent wording", "Unsubscribed at", "Joined", "Source"],
       ...subscribers.map((entry) => [entry.email, entry.marketing_consent ? "yes" : "no", entry.consented_at, entry.consent_text, entry.unsubscribed_at, entry.created_at, entry.source]),

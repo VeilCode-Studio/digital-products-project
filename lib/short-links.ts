@@ -21,8 +21,8 @@ export function shortLinkBase() {
   return base;
 }
 
-export async function listShortLinks(): Promise<ShortLink[]> {
-  const { data, error } = await getSupabase().from("short_links").select("*").eq("store_id", STORE_ID).order("created_at", { ascending: false }).limit(500);
+export async function listShortLinks(storeId = STORE_ID): Promise<ShortLink[]> {
+  const { data, error } = await getSupabase().from("short_links").select("*").eq("store_id", storeId).order("created_at", { ascending: false }).limit(500);
   if (error) throw new Error("Could not load short links");
   return (data ?? []) as ShortLink[];
 }
@@ -43,46 +43,46 @@ function linkInput(body: Record<string, unknown>) {
   return { slug, source, label, product_id: productId };
 }
 
-async function assertProduct(productId: string | null) {
+async function assertProduct(productId: string | null, storeId: string) {
   if (!productId) return;
-  const { data, error } = await getSupabase().from("products").select("id").eq("store_id", STORE_ID).eq("id", productId).maybeSingle();
+  const { data, error } = await getSupabase().from("products").select("id").eq("store_id", storeId).eq("id", productId).maybeSingle();
   if (error) throw new Error("Could not check the product");
   if (!data) throw new HttpError(400, "Choose one of your products.");
 }
 
-export async function createShortLink(body: Record<string, unknown>) {
+export async function createShortLink(body: Record<string, unknown>, storeId = STORE_ID) {
   const input = linkInput(body);
-  await assertProduct(input.product_id);
-  const { data, error } = await getSupabase().from("short_links").insert({ ...input, store_id: STORE_ID }).select("*").single();
+  await assertProduct(input.product_id, storeId);
+  const { data, error } = await getSupabase().from("short_links").insert({ ...input, store_id: storeId }).select("*").single();
   if (error?.code === "23505") throw new HttpError(409, `/${input.slug} is already taken. Try another.`);
   if (error || !data) throw new Error("Could not create the short link");
   return data as ShortLink;
 }
 
-export async function updateShortLink(body: Record<string, unknown>) {
+export async function updateShortLink(body: Record<string, unknown>, storeId = STORE_ID) {
   const id = typeof body.id === "string" && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : null;
   if (!id) throw new HttpError(400, "Choose a link.");
   const changes: Partial<ShortLink> = { updated_at: new Date().toISOString() };
   if (typeof body.active === "boolean") changes.active = body.active;
   if ("productId" in body || "label" in body || "source" in body || "slug" in body) {
-    const { data: current, error: readError } = await getSupabase().from("short_links").select("*").eq("store_id", STORE_ID).eq("id", id).maybeSingle();
+    const { data: current, error: readError } = await getSupabase().from("short_links").select("*").eq("store_id", storeId).eq("id", id).maybeSingle();
     if (readError) throw new Error("Could not load the short link");
     if (!current) throw new HttpError(404, "That link no longer exists.");
     const input = linkInput({ slug: current.slug, productId: current.product_id ?? "home", source: current.source, label: current.label, ...body });
-    await assertProduct(input.product_id);
+    await assertProduct(input.product_id, storeId);
     Object.assign(changes, input);
   }
-  const { data, error } = await getSupabase().from("short_links").update(changes).eq("store_id", STORE_ID).eq("id", id).select("*").maybeSingle();
+  const { data, error } = await getSupabase().from("short_links").update(changes).eq("store_id", storeId).eq("id", id).select("*").maybeSingle();
   if (error?.code === "23505") throw new HttpError(409, "That link is already taken. Try another.");
   if (error) throw new Error("Could not update the short link");
   if (!data) throw new HttpError(404, "That link no longer exists.");
   return data as ShortLink;
 }
 
-export async function deleteShortLink(body: Record<string, unknown>) {
+export async function deleteShortLink(body: Record<string, unknown>, storeId = STORE_ID) {
   const id = typeof body.id === "string" && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : null;
   if (!id) throw new HttpError(400, "Choose a link.");
-  const { error } = await getSupabase().from("short_links").delete().eq("store_id", STORE_ID).eq("id", id);
+  const { error } = await getSupabase().from("short_links").delete().eq("store_id", storeId).eq("id", id);
   if (error) throw new Error("Could not delete the short link");
   return { deleted: id };
 }
@@ -119,13 +119,14 @@ export function linkFromCookie(header: string | null) {
 export type LinkStats = { orders: number; revenue: number; currency: string | null; clicks7d: number };
 
 /** Orders and revenue credited to each link (via the checkouts it tagged), and clicks in the last week. */
-export async function linkStats(links: ShortLink[]): Promise<Map<string, LinkStats>> {
+export async function linkStats(links: ShortLink[], storeId = STORE_ID): Promise<Map<string, LinkStats>> {
   const stats = new Map<string, LinkStats>(links.map((link) => [link.slug, { orders: 0, revenue: 0, currency: null, clicks7d: 0 }]));
   if (!links.length) return stats;
+  if (links.some(link => link.store_id !== storeId)) throw new HttpError(403, "These links belong to another workspace.");
   const db = getSupabase();
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const [checkouts, clicks] = await Promise.all([
-    db.from("checkouts").select("link_slug, stripe_session_id").eq("store_id", STORE_ID).not("link_slug", "is", null).not("stripe_session_id", "is", null).order("created_at", { ascending: false }).limit(5000),
+    db.from("checkouts").select("link_slug, stripe_session_id").eq("store_id", storeId).not("link_slug", "is", null).not("stripe_session_id", "is", null).order("created_at", { ascending: false }).limit(5000),
     db.from("short_link_clicks").select("link_id").in("link_id", links.map((link) => link.id)).gte("created_at", since).limit(20000),
   ]);
   if (checkouts.error || clicks.error) throw new Error("Could not load short link results");
@@ -134,7 +135,7 @@ export async function linkStats(links: ShortLink[]): Promise<Map<string, LinkSta
   const sessionToSlug = new Map(((checkouts.data ?? []) as { link_slug: string; stripe_session_id: string }[]).map((row) => [row.stripe_session_id, row.link_slug]));
   const sessions = [...sessionToSlug.keys()];
   for (let start = 0; start < sessions.length; start += 200) {
-    const { data, error } = await db.from("orders").select("stripe_session_id, amount_total, currency").eq("store_id", STORE_ID).in("stripe_session_id", sessions.slice(start, start + 200));
+    const { data, error } = await db.from("orders").select("stripe_session_id, amount_total, currency").eq("store_id", storeId).in("stripe_session_id", sessions.slice(start, start + 200));
     if (error) throw new Error("Could not load short link sales");
     for (const order of (data ?? []) as { stripe_session_id: string; amount_total: number | null; currency: string | null }[]) {
       const entry = stats.get(sessionToSlug.get(order.stripe_session_id) ?? "");

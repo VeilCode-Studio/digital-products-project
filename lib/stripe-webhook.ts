@@ -135,7 +135,7 @@ export async function handleStripeWebhook(req: Request, connected = false) {
       amountTotal: session.amount_total, currency: session.currency,
       tokenHash: token.hash, expiresAt: token.expiresAt,
       storeId: connection?.store_id, connectionId: connection?.id,
-      ...await discountFromSession(session),
+      ...await discountFromSession(session, connection?.store_id, connection?.external_account_id),
     });
     if (order.email_status !== "sent") {
       await deliverOrder({ order, initialToken: inserted ? token : undefined });

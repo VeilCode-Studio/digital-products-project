@@ -66,7 +66,7 @@ export async function recordPhysicalOrder(session: Stripe.Checkout.Session, chec
     amountTotal: session.amount_total, currency: session.currency,
     customerName: address.name, shippingAddress: address, snapshot: { ...reserved, shipping },
     storeId: connection?.store_id, connectionId: connection?.id,
-    ...await discountFromSession(session),
+    ...await discountFromSession(session, checkout.store_id, connection?.external_account_id),
   });
   if (order.email_status !== "sent") {
     await sendOrderConfirmation(order);

@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
 import { getCatalogProduct } from "@/lib/catalog";
+import { STORE_ID } from "@/lib/store-config";
 import { clickContext, destinationFor, findActiveLink, LINK_COOKIE, LINK_COOKIE_DAYS, recordClick, SLUG_PATTERN } from "@/lib/short-links";
 
 export const runtime = "nodejs";
@@ -28,6 +29,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ link: st
   let link = null;
   try { link = await findActiveLink(slug); } catch (error) { console.error("Short link lookup failed", error instanceof Error ? error.message.slice(0, 200) : ""); }
   if (!link) return NextResponse.redirect(new URL("/", app), { status: 307, headers });
+  // New-workspace links must wait for their tenant URL resolver; never send them to the legacy catalog.
+  if (link.store_id !== STORE_ID) return new Response("Link not available yet", { status: 404, headers });
 
   let product = null;
   try { product = link.product_id ? await getCatalogProduct(link.product_id) : null; } catch { /* send them home rather than fail */ }

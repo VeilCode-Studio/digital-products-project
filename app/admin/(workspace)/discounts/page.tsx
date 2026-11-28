@@ -1,4 +1,5 @@
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { getStore } from "@/lib/catalog";
 import { listDiscountCodes, type DiscountCodeRow } from "@/lib/discount-codes";
 import { NavSection } from "@/components/admin-nav";
@@ -8,10 +9,11 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Discount codes" };
 
 export default async function DiscountsPage() {
-  await ownerPage();
-  const store = await getStore();
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const store = await getStore(storeId);
   let codes: DiscountCodeRow[] | null = null;
-  try { codes = await listDiscountCodes(); }
+  try { codes = await listDiscountCodes(storeId); }
   catch (error) { console.error("Discount codes unavailable", error instanceof Error ? error.message.slice(0, 200) : ""); }
   return <><NavSection href="/admin/discounts" />
     <div className="admin-page-heading">

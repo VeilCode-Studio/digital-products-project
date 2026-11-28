@@ -44,15 +44,15 @@ export function describeDiscount(code: Pick<DiscountCode, "percent_off" | "amoun
   return `${new Intl.NumberFormat("en-US", { style: "currency", currency: (code.currency ?? "usd").toUpperCase(), maximumFractionDigits: amount % 1 ? 2 : 0 }).format(amount)} off`;
 }
 
-export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
+export async function listDiscountCodes(storeId = STORE_ID): Promise<DiscountCodeRow[]> {
   const db = getSupabase();
-  const { data, error } = await db.from("discount_codes").select("*").eq("store_id", STORE_ID).order("created_at", { ascending: false });
+  const { data, error } = await db.from("discount_codes").select("*").eq("store_id", storeId).order("created_at", { ascending: false });
   if (error) throw new HttpError(503, "Discount codes are temporarily unavailable.");
   const codes = (data ?? []) as DiscountCode[];
   const stats = new Map<string, CodeStats>();
   if (codes.length) {
     const { data: orders, error: orderError } = await db.from("orders").select("discount_code, amount_total, discount_amount, currency, refunded_amount")
-      .eq("store_id", STORE_ID).in("discount_code", codes.map((code) => code.code));
+      .eq("store_id", storeId).in("discount_code", codes.map((code) => code.code));
     if (orderError) throw new HttpError(503, "Discount codes are temporarily unavailable.");
     for (const order of (orders ?? []) as { discount_code: string; amount_total: number | null; discount_amount: number | null; currency: string | null; refunded_amount: number | null }[]) {
       const entry = stats.get(order.discount_code) ?? { orders: 0, revenue: 0, discounted: 0, currency: order.currency };
@@ -70,7 +70,7 @@ export async function listDiscountCodes(): Promise<DiscountCodeRow[]> {
 
 type CreateInput = Record<string, unknown>;
 
-export async function createDiscountCode(body: CreateInput): Promise<DiscountCodeRow> {
+export async function createDiscountCode(body: CreateInput, storeId = STORE_ID): Promise<DiscountCodeRow> {
   const code = normalizeCode(body.code);
   const problem = codeProblem(code);
   if (problem) throw new HttpError(400, problem);
@@ -96,13 +96,13 @@ export async function createDiscountCode(body: CreateInput): Promise<DiscountCod
   const label = typeof body.label === "string" && body.label.trim() ? body.label.trim().slice(0, 80) : null;
 
   const db = getSupabase();
-  const { data: taken } = await db.from("discount_codes").select("id").eq("store_id", STORE_ID).eq("code", code).maybeSingle();
+  const { data: taken } = await db.from("discount_codes").select("id").eq("store_id", storeId).eq("code", code).maybeSingle();
   if (taken) throw new HttpError(409, `${code} already exists. Pick another code.`);
 
-  const context = await paymentContext();
+  const context = await paymentContext(storeId);
   const options = stripeOptions(context);
   const stripe = getStripe();
-  const metadata = { app: "veilcode-store", store_id: STORE_ID, code };
+  const metadata = { app: "veilcode-store", store_id: storeId, code };
   let coupon: Stripe.Coupon; let promotion: Stripe.PromotionCode;
   try {
     coupon = await stripe.coupons.create({
@@ -120,7 +120,7 @@ export async function createDiscountCode(body: CreateInput): Promise<DiscountCod
     throw new HttpError(502, message);
   }
   const { data, error } = await db.from("discount_codes").insert({
-    store_id: STORE_ID, code, percent_off: percentOff, amount_off: amountOff, currency, max_redemptions: maxRedemptions,
+    store_id: storeId, code, percent_off: percentOff, amount_off: amountOff, currency, max_redemptions: maxRedemptions,
     expires_at: expiresAt?.toISOString() ?? null, label, stripe_coupon_id: coupon.id, stripe_promotion_code_id: promotion.id,
     stripe_account_id: context.accountId, livemode: context.livemode,
   }).select("*").single();
@@ -132,36 +132,39 @@ export async function createDiscountCode(body: CreateInput): Promise<DiscountCod
   return { ...(data as DiscountCode), stats: { orders: 0, revenue: 0, discounted: 0, currency: null }, usable: true };
 }
 
-async function ownCode(id: unknown) {
+async function ownCode(id: unknown, storeId: string) {
   if (typeof id !== "string") throw new HttpError(400, "Choose a code.");
-  const { data, error } = await getSupabase().from("discount_codes").select("*").eq("store_id", STORE_ID).eq("id", id).maybeSingle();
+  const { data, error } = await getSupabase().from("discount_codes").select("*").eq("store_id", storeId).eq("id", id).maybeSingle();
   if (error) throw new HttpError(503, "Discount codes are temporarily unavailable.");
   if (!data) throw new HttpError(404, "That code no longer exists.");
   return data as DiscountCode;
 }
 
 /** Pause or resume a code. Stripe is updated first, so the switch is real before the admin shows it. */
-export async function setDiscountCodeActive(body: CreateInput): Promise<DiscountCode> {
-  const code = await ownCode(body.id);
+export async function setDiscountCodeActive(body: CreateInput, storeId = STORE_ID): Promise<DiscountCode> {
+  const code = await ownCode(body.id, storeId);
+  if (storeId !== STORE_ID && !code.stripe_account_id) throw new HttpError(409, "This code has no merchant payment account.");
   const active = body.active === true;
   try {
     await getStripe().promotionCodes.update(code.stripe_promotion_code_id, { active }, code.stripe_account_id ? { stripeAccount: code.stripe_account_id } : {});
   } catch { throw new HttpError(502, "Stripe couldn't update the code. Please try again."); }
   const { data, error } = await getSupabase().from("discount_codes").update({ active, updated_at: new Date().toISOString() })
-    .eq("id", code.id).eq("store_id", STORE_ID).select("*").single();
+    .eq("id", code.id).eq("store_id", storeId).select("*").single();
   if (error || !data) throw new HttpError(500, "Could not save the change.");
   return data as DiscountCode;
 }
 
 /** What a completed Checkout Session saved, and the store's code for it, for the order record. */
-export async function discountFromSession(session: Pick<Stripe.Checkout.Session, "discounts" | "total_details">) {
+export async function discountFromSession(session: Pick<Stripe.Checkout.Session, "discounts" | "total_details">, storeId = STORE_ID, accountId: string | null = null) {
   const amount = session.total_details?.amount_discount ?? 0;
   const promotion = session.discounts?.find((entry) => entry.promotion_code)?.promotion_code;
   const promotionId = typeof promotion === "string" ? promotion : promotion?.id ?? null;
   if (!amount && !promotionId) return { discountCode: null, discountAmount: null };
   let code: string | null = null;
   if (promotionId) {
-    const { data } = await getSupabase().from("discount_codes").select("code").eq("stripe_promotion_code_id", promotionId).maybeSingle();
+    let query = getSupabase().from("discount_codes").select("code").eq("store_id", storeId).eq("stripe_promotion_code_id", promotionId);
+    query = accountId ? query.eq("stripe_account_id", accountId) : query.is("stripe_account_id", null);
+    const { data } = await query.maybeSingle();
     code = (data as { code: string } | null)?.code ?? (typeof promotion === "object" && promotion ? promotion.code : null);
   }
   return { discountCode: code, discountAmount: amount || null };

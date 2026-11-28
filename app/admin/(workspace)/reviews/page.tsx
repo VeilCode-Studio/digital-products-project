@@ -1,4 +1,5 @@
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { listProducts } from "@/lib/catalog";
 import { listReviews } from "@/lib/reviews";
 import { NavSection } from "@/components/admin-nav";
@@ -9,8 +10,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Reviews" };
 
 export default async function ReviewsPage() {
-  await ownerPage();
-  const [reviews, products] = await Promise.all([listReviews().catch(() => null), listProducts()]);
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const [reviews, products] = await Promise.all([listReviews(storeId).catch(() => null), listProducts(false, undefined, storeId)]);
   const names = new Map(products.map((product) => [product.id, product.name]));
   return <><NavSection href="/admin/reviews" />
     <div className="admin-page-heading">

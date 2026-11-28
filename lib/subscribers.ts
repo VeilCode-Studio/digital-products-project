@@ -34,27 +34,27 @@ function toGift(product: CatalogProduct): Gift {
 }
 
 /** The free download on offer, if the owner picked one and its file is uploaded. */
-export async function currentGift(): Promise<Gift | null> {
+export async function currentGift(storeId = STORE_ID): Promise<Gift | null> {
   const db = getSupabase();
-  const { data: store } = await db.from("stores").select("gift_product_id").eq("id", STORE_ID).maybeSingle();
+  const { data: store } = await db.from("stores").select("gift_product_id").eq("id", storeId).maybeSingle();
   const giftId = (store as { gift_product_id?: string | null } | null)?.gift_product_id;
   if (!giftId) return null;
-  const { data: product } = await db.from("products").select("*").eq("store_id", STORE_ID).eq("id", giftId).maybeSingle();
+  const { data: product } = await db.from("products").select("*").eq("store_id", storeId).eq("id", giftId).maybeSingle();
   const gift = product as CatalogProduct | null;
   return gift && gift.kind === "digital" && gift.storage_path ? toGift(gift) : null;
 }
 
-export async function setGift(productId: unknown) {
+export async function setGift(productId: unknown, storeId = STORE_ID) {
   const db = getSupabase();
   let id: string | null = null;
   if (typeof productId === "string" && productId) {
-    const { data } = await db.from("products").select("*").eq("store_id", STORE_ID).eq("id", productId).maybeSingle();
+    const { data } = await db.from("products").select("*").eq("store_id", storeId).eq("id", productId).maybeSingle();
     const product = data as CatalogProduct | null;
     if (!product || product.kind !== "digital") throw new HttpError(400, "Choose one of your digital products.");
     if (!product.storage_path) throw new HttpError(400, "Upload this product's file first, so there's something to send.");
     id = product.id;
   }
-  const { error } = await db.from("stores").update({ gift_product_id: id }).eq("id", STORE_ID);
+  const { error } = await db.from("stores").update({ gift_product_id: id }).eq("id", storeId);
   if (error) throw new HttpError(500, "Could not save the free download.");
   return { giftProductId: id };
 }
@@ -191,8 +191,8 @@ export async function unsubscribe(token: unknown) {
 
 export type SubscriberSummary = { total: number; consented: number; unsubscribed: number; last7: number };
 
-export async function listSubscribers(): Promise<{ subscribers: Subscriber[]; summary: SubscriberSummary }> {
-  const { data, error } = await getSupabase().from("subscribers").select("*").eq("store_id", STORE_ID).order("created_at", { ascending: false }).limit(5000);
+export async function listSubscribers(storeId = STORE_ID): Promise<{ subscribers: Subscriber[]; summary: SubscriberSummary }> {
+  const { data, error } = await getSupabase().from("subscribers").select("*").eq("store_id", storeId).order("created_at", { ascending: false }).limit(5000);
   if (error) throw new HttpError(503, "Subscribers are temporarily unavailable.");
   const subscribers = (data ?? []) as Subscriber[];
   const week = Date.now() - 7 * 86400_000;

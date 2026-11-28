@@ -1,4 +1,5 @@
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { listProducts } from "@/lib/catalog";
 import { linkStats, listShortLinks, shortLinkBase } from "@/lib/short-links";
 import { NavSection } from "@/components/admin-nav";
@@ -6,12 +7,13 @@ import { ShortLinks, type LinkRow } from "@/components/short-links";
 
 export const dynamic = "force-dynamic";
 export default async function LinksPage() {
-  await ownerPage();
-  const products = await listProducts();
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const products = await listProducts(false, undefined, storeId);
   let rows: LinkRow[] | null = null;
   try {
-    const links = await listShortLinks();
-    const stats = await linkStats(links);
+    const links = await listShortLinks(storeId);
+    const stats = await linkStats(links, storeId);
     rows = links.map((link) => ({ ...link, ...(stats.get(link.slug) ?? { orders: 0, revenue: 0, currency: null, clicks7d: 0 }) }));
   } catch (error) {
     // Most likely the short links migration hasn't been applied to this database yet.
