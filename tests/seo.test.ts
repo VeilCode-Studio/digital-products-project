@@ -39,6 +39,7 @@ describe("search engines", () => {
     expect(digital).toMatchObject({ "@type": "Product", url: `${SITE}/p/kit`, offers: { price: "29.00", priceCurrency: "USD", availability: "https://schema.org/InStock" } });
     expect(digital.image?.[0]).toMatch(new RegExp(`^${SITE}/api/products/`));
     expect(digitalProductLd(seedProduct({ price_amount: null }))).toBeNull();
+    expect(digitalProductLd(seedProduct(), null, "https://merchant.example/product", "Independent merchant")).toMatchObject({ brand: { name: "Independent merchant" }, url: "https://merchant.example/product" });
 
     const store = {
       product: { id: "p1", slug: "lamp", name: "Mira Lamp", tagline: "Soft light", description: "", currency: "usd", draft: false },

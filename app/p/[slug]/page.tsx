@@ -41,10 +41,12 @@ export async function generateMetadata(props: Params): Promise<Metadata> {
   const { product } = await load(props);
   if (!product) return { title: "Product not found" };
   const canonical = await publicProductUrl(product);
+  const store = await getStore(product.store_id);
   return {
     title: product.name, description: product.tagline || undefined,
     alternates: { canonical },
     openGraph: {
+      siteName: store.name,
       title: product.name, description: product.tagline || undefined, url: canonical,
       images: product.cover_path && product.status === "published" ? [{ url: coverSrc(product), alt: `${product.name} cover` }] : undefined,
     },
@@ -77,7 +79,7 @@ export default async function ProductPage(props: Params) {
     <div id={ROOT_ID} className={`vc vc-pd-page ${monaSans.variable}`}>
       <PageEffects rootId={ROOT_ID} />
 
-      {!draft && <JsonLd data={digitalProductLd(product, ratings, await publicProductUrl(product))} />}
+      {!draft && <JsonLd data={digitalProductLd(product, ratings, await publicProductUrl(product), store.name)} />}
       <main className="vc-wrap vc-pd">
         {draft && (
           <div className="vc-pd-draft" role="status">

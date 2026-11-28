@@ -35,7 +35,7 @@ function ratingLd(ratings?: Ratings | null) {
 }
 const IN_STOCK = "https://schema.org/InStock";
 
-export function digitalProductLd(product: CatalogProduct, ratings?: Ratings | null, canonical?: string) {
+export function digitalProductLd(product: CatalogProduct, ratings?: Ratings | null, canonical?: string, brand = BRAND) {
   if (product.price_amount === null) return null;
   const url = canonical ?? absolute(`/p/${product.slug}`);
   return {
@@ -45,7 +45,7 @@ export function digitalProductLd(product: CatalogProduct, ratings?: Ratings | nu
     description: product.tagline || product.description.slice(0, 500) || undefined,
     image: product.cover_path ? [absolute(`/api/products/${encodeURIComponent(product.id)}/cover/${product.revision}`)] : undefined,
     sku: product.id,
-    brand: { "@type": "Brand", name: BRAND },
+    brand: { "@type": "Brand", name: brand },
     url,
     offers: {
       "@type": "Offer", url, price: money(product.price_amount), priceCurrency: product.currency.toUpperCase(),
