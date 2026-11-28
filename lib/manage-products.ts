@@ -15,10 +15,10 @@ import { syncConnectedProduct } from "./connected-stripe-products";
 import { inspectProductFile, resolveProductUpload, validateUploadSize } from "./product-uploads";
 import { knownRelatedIds } from "./related-products";
 
-export async function uploadProductFile(productId: string, file: File, cover: boolean) {
+export async function uploadProductFile(productId: string, file: File, cover: boolean, storeId = STORE_ID) {
   const { extension, contentType, filename } = await inspectProductFile(file, file.name, cover ? "cover" : "download");
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const path = `${STORE_ID}/${productId}/${cover ? "covers" : "downloads"}/${randomUUID()}.${extension}`;
+  const path = `${storeId}/${productId}/${cover ? "covers" : "downloads"}/${randomUUID()}.${extension}`;
   const { error } = await getSupabase().storage.from(getEnv().SUPABASE_BUCKET).upload(path, bytes, { contentType, upsert: false });
   if (error) throw new HttpError(503, "The upload failed. Check the private Storage bucket and try again.");
   return { path, contentType, filename };
@@ -53,19 +53,19 @@ async function syncStripeProduct(product: CatalogProduct, input: ReturnType<type
   return { stripe_product_id: id, stripe_price_id: priceId, stripe_livemode: livemode };
 }
 
-export async function saveProduct(form: FormData) {
+export async function saveProduct(form: FormData, storeId = STORE_ID) {
   let input: ReturnType<typeof parseProductInput>;
   try { input = parseProductInput(form); } catch (error) { throw new HttpError(400, (error as Error).message); }
   const templates_url = validHttps(input.templates_url, "Resource link");
-  let product = await getCatalogProduct(input.id);
+  let product = await getCatalogProduct(input.id, storeId);
   if (!product) {
     if (input.revision !== 0) throw new HttpError(409, "This product no longer exists.");
-    const { data, error } = await getSupabase().from("products").insert({ id: input.id, store_id: STORE_ID, slug: input.slug, name: input.name }).select("*").single();
+    const { data, error } = await getSupabase().from("products").insert({ id: input.id, store_id: storeId, slug: input.slug, name: input.name }).select("*").single();
     if (error || !data) throw new HttpError(error?.code === "23505" ? 409 : 500, "Could not create the draft. Check that the URL slug is unique.");
     product = data;
   }
   if (product.revision !== input.revision) throw new HttpError(409, "This product changed in another tab. Reload before saving.");
-  const related_ids = input.related_ids && await knownRelatedIds(input.related_ids, product.id);
+  const related_ids = input.related_ids && await knownRelatedIds(input.related_ids, product.id, storeId);
   let storage_path = product.storage_path;
   let download_filename = product.download_filename;
   let cover_path = product.cover_path;
@@ -81,29 +81,36 @@ export async function saveProduct(form: FormData) {
   if ((downloadUpload && typeof downloadUpload !== "string") || (coverUpload && typeof coverUpload !== "string")) throw new HttpError(400, "Invalid upload receipt.");
   if ((downloadUpload && file instanceof File && file.size) || (coverUpload && cover instanceof File && cover.size)) throw new HttpError(400, "Submit only one upload per file.");
   if (typeof downloadUpload === "string" && downloadUpload) {
-    const uploaded = await resolveProductUpload(downloadUpload, product.id, input.revision, "download");
+    const uploaded = await resolveProductUpload(downloadUpload, product.id, input.revision, "download", storeId);
     storage_path = uploaded.path; download_filename = uploaded.filename;
   }
   if (typeof coverUpload === "string" && coverUpload) {
-    const uploaded = await resolveProductUpload(coverUpload, product.id, input.revision, "cover");
+    const uploaded = await resolveProductUpload(coverUpload, product.id, input.revision, "cover", storeId);
     cover_path = uploaded.path; cover_type = uploaded.contentType;
   }
   if (file instanceof File && file.size) {
-    const uploaded = await uploadProductFile(product.id, file, false);
+    const uploaded = await uploadProductFile(product.id, file, false, storeId);
     storage_path = uploaded.path; download_filename = uploaded.filename;
   }
   if (cover instanceof File && cover.size) {
-    const uploaded = await uploadProductFile(product.id, cover, true);
+    const uploaded = await uploadProductFile(product.id, cover, true, storeId);
     cover_path = uploaded.path; cover_type = uploaded.contentType;
   }
   if (input.status === "published" && (!storage_path || !download_filename || !input.description || !input.tagline)) throw new HttpError(400, "To publish, add a description, short description, and downloadable file.");
+  if (storeId !== STORE_ID && ((storage_path && !storage_path.startsWith(`${storeId}/${product.id}/downloads/`)) || (cover_path && !cover_path.startsWith(`${storeId}/${product.id}/covers/`)))) throw new HttpError(409, "This product's files do not belong to this workspace. Upload them again before saving.");
   if (input.status === "published") await assertDownloadAvailable(storage_path, "The download is missing from Storage. Upload the actual PDF or ZIP before publishing.");
-  let payment;
+  let payment = {};
   try {
-    const context = await paymentContext();
-    const updated = { ...product, name: input.name, description: input.description, tagline: input.tagline, cover_path, price_amount: input.price_amount, currency: input.currency };
-    if (context.accountId) { await syncConnectedProduct(updated, context); payment = {}; }
-    else payment = await syncStripeProduct(updated, input);
+    // Independent merchants can prepare drafts before connecting payments. Publishing still requires their own account.
+    if (storeId === STORE_ID || input.status === "published") {
+      const context = await paymentContext(storeId);
+      const updated = { ...product, name: input.name, description: input.description, tagline: input.tagline, cover_path, price_amount: input.price_amount, currency: input.currency };
+      if (context.accountId) await syncConnectedProduct(updated, context);
+      else {
+        if (storeId !== STORE_ID) throw new HttpError(503, "Connect Stripe before publishing this product.");
+        payment = await syncStripeProduct(updated, input);
+      }
+    }
   } catch (error) {
     if (error instanceof HttpError) throw error;
     throw new HttpError(502, "Stripe could not set up this product. Check your payment key and try saving again. Your draft is retained.");
@@ -114,7 +121,7 @@ export async function saveProduct(form: FormData) {
     templates_url, storage_path, download_filename, cover_path, cover_type, ...payment,
     ...(related_ids ? { related_ids } : {}),
     revision: input.revision + 1, updated_at: new Date().toISOString(),
-  }).eq("id", product.id).eq("store_id", STORE_ID).eq("revision", input.revision).select("*").maybeSingle();
+  }).eq("id", product.id).eq("store_id", storeId).eq("revision", input.revision).select("*").maybeSingle();
   if (error) throw new HttpError(error.code === "23505" ? 409 : 500, error.code === "23505" ? "That URL slug is already in use." : "Could not save the product. Please retry.");
   if (!data) throw new HttpError(409, "Another save completed first. Reload the product before saving again.");
   return data;

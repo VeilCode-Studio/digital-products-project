@@ -33,13 +33,13 @@ export function storefrontPath(product: { kind?: string; slug: string }) {
 }
 
 /** Public paths allowed on a product domain; management and other products stay on the platform. */
-export function domainPath(path: string, product: { kind?: string; slug: string }): string | null {
+export function domainPath(path: string, product: { id?: string; kind?: string; slug: string }): string | null {
   const base = storefrontPath(product);
   if (path === "/") return base;
   if (path === base || path.startsWith(`${base}/`)) return path;
   if (product.kind === "physical" && (/^\/policies\/(privacy|terms|shipping|returns|contact)$/.test(path) || ["/thank-you", "/cancel"].includes(path))) return base + path;
   if (product.kind !== "physical" && ["/thank-you", "/privacy", "/terms", "/refunds", "/support", "/data-deletion"].includes(path)) return path;
   if (["/api/checkout", "/api/checkout/physical", "/api/subscribe"].includes(path)) return path;
-  if (path.startsWith(`/api/products/`)) return path;
+  if (product.id && path.startsWith(`/api/products/${encodeURIComponent(product.id)}/`)) return path;
   return null;
 }

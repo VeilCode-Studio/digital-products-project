@@ -11,7 +11,7 @@ const formats = {
   pdf: "application/pdf", zip: "application/zip", png: "image/png", jpg: "image/jpeg", webp: "image/webp",
 } as const;
 type Extension = keyof typeof formats;
-type UploadReceipt = { productId: string; revision: number; kind: ProductUploadKind; path: string; filename: string; contentType: string; size: number; expiresAt: number };
+type UploadReceipt = { storeId?: string; productId: string; revision: number; kind: ProductUploadKind; path: string; filename: string; contentType: string; size: number; expiresAt: number };
 
 export function validateUploadSize(size: number, kind: ProductUploadKind) {
   if (!Number.isSafeInteger(size) || size <= 0) throw new HttpError(400, "This file is empty. Choose a different file.");
@@ -40,25 +40,25 @@ function signature(payload: string) {
   // Separate this capability from other uses of the server-only service key.
   return createHmac("sha256", getEnv().SUPABASE_SERVICE_ROLE_KEY).update(`product-upload-v1:${payload}`).digest();
 }
-export async function prepareProductUpload(input: Record<string, unknown>) {
+export async function prepareProductUpload(input: Record<string, unknown>, storeId = STORE_ID) {
   const { productId, revision, kind, filename, size } = input;
   if (typeof productId !== "string" || !/^(lead-to-kickoff|[0-9a-f-]{36})$/.test(productId) || typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0 || (kind !== "cover" && kind !== "download") || typeof filename !== "string" || filename.length > 255 || typeof size !== "number") throw new HttpError(400, "Invalid upload details.");
   validateUploadSize(size, kind);
   const rawExtension = filename.split(".").pop()?.toLowerCase();
   const extension = rawExtension === "jpeg" ? "jpg" : rawExtension;
   if (!extension || !(kind === "cover" ? ["png", "jpg", "webp"] : ["pdf", "zip"]).includes(extension)) throw new HttpError(400, "Choose a supported file format.");
-  const product = await getCatalogProduct(productId);
+  const product = await getCatalogProduct(productId, storeId);
   if ((!product && revision !== 0) || (product && product.revision !== revision)) throw new HttpError(409, "This product changed. Reload before uploading again.");
   const details = fileDetails(filename, extension as Extension);
-  const path = `${STORE_ID}/${productId}/${kind === "cover" ? "covers" : "downloads"}/${randomUUID()}.${extension}`;
+  const path = `${storeId}/${productId}/${kind === "cover" ? "covers" : "downloads"}/${randomUUID()}.${extension}`;
   const expiresAt = Date.now() + 2 * 60 * 60 * 1000;
-  const receipt: UploadReceipt = { productId, revision, kind, path, filename: details.filename, contentType: details.contentType, size, expiresAt };
+  const receipt: UploadReceipt = { storeId, productId, revision, kind, path, filename: details.filename, contentType: details.contentType, size, expiresAt };
   const payload = Buffer.from(JSON.stringify(receipt)).toString("base64url");
   const { data, error } = await getSupabase().storage.from(getEnv().SUPABASE_BUCKET).createSignedUploadUrl(path, { upsert: false });
   if (error || !data) throw new HttpError(503, "Could not prepare the upload. Please try again.");
   return { signedUrl: data.signedUrl, contentType: details.contentType, receipt: `${payload}.${signature(payload).toString("base64url")}`, expiresAt };
 }
-export async function resolveProductUpload(token: string, productId: string, revision: number, kind: ProductUploadKind) {
+export async function resolveProductUpload(token: string, productId: string, revision: number, kind: ProductUploadKind, storeId = STORE_ID) {
   if (token.length > 4096) throw new HttpError(400, "Invalid upload receipt.");
   const [payload, mac, extra] = token.split(".");
   const provided = Buffer.from(mac ?? "", "base64url");
@@ -66,7 +66,8 @@ export async function resolveProductUpload(token: string, productId: string, rev
   if (!payload || extra || provided.length !== expected.length || !timingSafeEqual(provided, expected)) throw new HttpError(400, "Invalid upload receipt.");
   let receipt: UploadReceipt;
   try { receipt = JSON.parse(Buffer.from(payload, "base64url").toString()); } catch { throw new HttpError(400, "Invalid upload receipt."); }
-  if (receipt.productId !== productId || receipt.revision !== revision || receipt.kind !== kind || !receipt.path.startsWith(`${STORE_ID}/${productId}/${kind === "cover" ? "covers" : "downloads"}/`)) throw new HttpError(400, "This upload belongs to another product or revision.");
+  // Old receipts remain valid only in the original store for their existing two-hour lifetime.
+  if ((receipt.storeId ?? STORE_ID) !== storeId || receipt.productId !== productId || receipt.revision !== revision || receipt.kind !== kind || !receipt.path.startsWith(`${storeId}/${productId}/${kind === "cover" ? "covers" : "downloads"}/`)) throw new HttpError(400, "This upload belongs to another workspace, product or revision.");
   if (receipt.expiresAt <= Date.now()) throw new HttpError(400, "This upload expired. Choose the file again and retry.");
   validateUploadSize(receipt.size, kind);
   const storage = getSupabase().storage.from(getEnv().SUPABASE_BUCKET);

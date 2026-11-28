@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Package, Plus } from "lucide-react";
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { listProducts } from "@/lib/catalog";
 import { NavSection } from "@/components/admin-nav";
 import { CatalogList } from "@/components/catalog-list";
@@ -9,8 +10,9 @@ export const dynamic = "force-dynamic";
 
 /** Digital downloads only. Physical single-product stores live under /admin/stores. */
 export default async function ProductsPage() {
-  await ownerPage();
-  const products = await listProducts(false, "digital");
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const products = await listProducts(false, "digital", storeId);
   return <><NavSection href="/admin/products" />
     <div className="admin-page-heading">
       <div><span className="eyebrow">YOUR SHELF</span><h1>Digital products</h1><p>Guides, templates and downloads, delivered by email the moment someone pays.</p></div>

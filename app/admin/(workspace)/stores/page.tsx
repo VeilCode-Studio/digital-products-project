@@ -3,15 +3,15 @@ import { Store } from "lucide-react";
 import { ownerPage } from "@/lib/auth";
 import { listProducts } from "@/lib/catalog";
 import { getSupabase } from "@/lib/supabase";
-import { STORE_ID } from "@/lib/store-config";
+import { workspaceForUser } from "@/lib/workspace";
 import { NavSection } from "@/components/admin-nav";
 import { CatalogList } from "@/components/catalog-list";
 
 export const dynamic = "force-dynamic";
 
 /** The lowest active variant price of each physical store, for the list. */
-async function storePrices() {
-  const { data, error } = await getSupabase().from("product_variants").select("product_id, price_amount").eq("store_id", STORE_ID).eq("active", true);
+async function storePrices(storeId: string) {
+  const { data, error } = await getSupabase().from("product_variants").select("product_id, price_amount").eq("store_id", storeId).eq("active", true);
   if (error) throw new Error("Could not load variant prices");
   const lowest = new Map<string, number>();
   for (const row of (data ?? []) as { product_id: string; price_amount: number }[]) {
@@ -22,8 +22,9 @@ async function storePrices() {
 
 /** Physical products: each one is its own single-product store at /s/<slug>. */
 export default async function StoresPage() {
-  await ownerPage();
-  const [stores, prices] = await Promise.all([listProducts(false, "physical"), storePrices()]);
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const [stores, prices] = await Promise.all([listProducts(false, "physical", storeId), storePrices(storeId)]);
   return <><NavSection href="/admin/stores" />
     <div className="admin-page-heading">
       <div><span className="eyebrow">ONE PRODUCT, ONE STORE</span><h1>Physical stores</h1><p>Single-product stores for items shipped from your supplier.</p></div>

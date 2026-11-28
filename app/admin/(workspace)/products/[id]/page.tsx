@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Check } from "lucide-react";
 import { ownerPage } from "@/lib/auth";
+import { workspaceForUser } from "@/lib/workspace";
 import { getCatalogProduct } from "@/lib/catalog";
 import { loadStoreEditor } from "@/lib/manage-stores";
 import { relatedChoices } from "@/lib/related-products";
@@ -14,14 +15,15 @@ import "../../../store-editor.css";
 
 export const dynamic = "force-dynamic";
 export default async function EditProduct({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> }) {
-  await ownerPage();
-  const product = await getCatalogProduct((await params).id);
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const product = await getCatalogProduct((await params).id, storeId);
   if (!product) notFound();
   if (product.kind === "physical") {
-    const data = await loadStoreEditor(product.id);
+    const data = await loadStoreEditor(product.id, storeId);
     return <><NavSection href="/admin/stores" /><StoreEditor key={`${product.id}-${data.product.revision}`} data={data} /></>;
   }
-  const [downloadStatus, related] = await Promise.all([getDownloadAvailability(product.storage_path), relatedChoices(product.id)]);
+  const [downloadStatus, related] = await Promise.all([getDownloadAvailability(product.storage_path), relatedChoices(product.id, storeId)]);
   if (product.id === "lead-to-kickoff" && !product.templates_url) product.templates_url = process.env.L2K_TEMPLATES_URL ?? null;
   const published = product.status === "published";
   return <><NavSection href="/admin/products" />

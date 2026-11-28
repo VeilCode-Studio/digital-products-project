@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/auth";
+import { requireWorkspace } from "@/lib/workspace";
 import { apiError, HttpError, jsonObject, sameOrigin } from "@/lib/http";
 import { confirmStoreMedia, deleteStoreMedia, prepareStoreMedia } from "@/lib/manage-stores";
 import { importCjPhotos } from "@/lib/cj-media";
@@ -11,12 +11,12 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    await requireOwner();
+    const { storeId } = await requireWorkspace();
     const body = await jsonObject(req);
-    const result = body.action === "prepare" ? await prepareStoreMedia(body)
-      : body.action === "confirm" ? await confirmStoreMedia(body)
-      : body.action === "delete" ? await deleteStoreMedia(body)
-      : body.action === "import-cj" ? await importCjPhotos(body)
+    const result = body.action === "prepare" ? await prepareStoreMedia(body, storeId)
+      : body.action === "confirm" ? await confirmStoreMedia(body, storeId)
+      : body.action === "delete" ? await deleteStoreMedia(body, storeId)
+      : body.action === "import-cj" ? await importCjPhotos(body, 10, 45_000, storeId)
       : (() => { throw new HttpError(400, "Unknown action."); })();
     return Response.json(result, { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
   } catch (error) { return apiError(error); }

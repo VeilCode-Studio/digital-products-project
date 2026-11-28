@@ -20,8 +20,14 @@ export async function listProducts(published = false, kind?: ProductKind, storeI
   if (error) throw new Error("Could not load products");
   return data ?? [];
 }
-export async function getCatalogProduct(id: string) {
-  const { data, error } = await getSupabase().from("products").select("*").eq("store_id", STORE_ID).eq("id", id).maybeSingle();
+export async function getCatalogProduct(id: string, storeId = STORE_ID) {
+  const { data, error } = await getSupabase().from("products").select("*").eq("store_id", storeId).eq("id", id).maybeSingle();
+  if (error) throw new Error("Could not load product");
+  return data;
+}
+/** Product IDs are globally unique; only published rows are eligible for public assets. */
+export async function getPublishedProductById(id: string) {
+  const { data, error } = await getSupabase().from("products").select("*").eq("id", id).eq("status", "published").maybeSingle();
   if (error) throw new Error("Could not load product");
   return data;
 }

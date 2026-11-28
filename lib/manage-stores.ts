@@ -15,6 +15,7 @@ import { findPoster, formatBytes, isGeneratedPoster, mediaExtension, mediaKind, 
 import { storefrontMediaBase } from "./storefront";
 import { pixelsWithServerEvents } from "./tiktok";
 import { metaPixelsWithServerEvents } from "./meta";
+import { paymentContext } from "./payment-connections";
 import type { CatalogProduct, ProductVariant, ShippingProfile, ShippingRate, StorePreviewDraft } from "./catalog.types";
 
 // The admin editor for physical single-product stores. Every value is validated here before it is
@@ -45,21 +46,21 @@ export type StoreEditorData = {
 
 const conflict = () => new HttpError(409, "This store was changed in another tab or window. Reload to get the latest version, then make your change again.");
 
-async function loadPhysical(id: unknown) {
+async function loadPhysical(id: unknown, storeId: string) {
   if (typeof id !== "string" || !PRODUCT_ID.test(id)) throw new HttpError(404, "This store doesn't exist.");
-  const product = await getCatalogProduct(id) as CatalogProduct | null;
+  const product = await getCatalogProduct(id, storeId) as CatalogProduct | null;
   if (!product || product.kind !== "physical") throw new HttpError(404, "This store doesn't exist.");
   return product;
 }
 
-function mediaFolder(productId: string) { return `${mediaPrefix(STORE_ID, productId)}media/`; }
+function mediaFolder(productId: string, storeId: string) { return `${mediaPrefix(storeId, productId)}media/`; }
 function validMediaPath(path: unknown, folder: string): path is string {
   return typeof path === "string" && path.length <= 300 && path.startsWith(folder) && /^[A-Za-z0-9/_.-]+$/.test(path) &&
     !path.includes("..") && !path.slice(folder.length).includes("/") && mediaExtension(path) !== null;
 }
 
-export async function listStoreMedia(productId: string): Promise<StoreMediaFile[]> {
-  const folder = mediaFolder(productId);
+export async function listStoreMedia(productId: string, storeId = STORE_ID): Promise<StoreMediaFile[]> {
+  const folder = mediaFolder(productId, storeId);
   const { data, error } = await getSupabase().storage.from(BUCKET).list(folder.slice(0, -1), { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
   if (error) throw new Error("Could not list store media");
   const files = (data ?? []).filter((file) => file.id && mediaExtension(file.name));
@@ -71,27 +72,27 @@ export async function listStoreMedia(productId: string): Promise<StoreMediaFile[
   });
 }
 
-export async function loadStoreEditor(id: string): Promise<StoreEditorData> {
-  const product = await loadPhysical(id);
+export async function loadStoreEditor(id: string, storeId = STORE_ID): Promise<StoreEditorData> {
+  const product = await loadPhysical(id, storeId);
   const db = getSupabase();
   const [variants, profiles, rates, products, media] = await Promise.all([
-    db.from("product_variants").select("*").eq("store_id", STORE_ID).eq("product_id", product.id).order("position"),
-    db.from("shipping_profiles").select("*").eq("store_id", STORE_ID).order("created_at"),
-    db.from("shipping_rates").select("*").eq("store_id", STORE_ID).order("position"),
-    db.from("products").select("id, name, shipping_profile_id").eq("store_id", STORE_ID).eq("kind", "physical"),
-    listStoreMedia(product.id),
+    db.from("product_variants").select("*").eq("store_id", storeId).eq("product_id", product.id).order("position"),
+    db.from("shipping_profiles").select("*").eq("store_id", storeId).order("created_at"),
+    db.from("shipping_rates").select("*").eq("store_id", storeId).order("position"),
+    db.from("products").select("id, name, shipping_profile_id").eq("store_id", storeId).eq("kind", "physical"),
+    listStoreMedia(product.id, storeId),
   ]);
   if (variants.error || profiles.error || rates.error || products.error) throw new Error("Could not load the store editor");
 
   let page: StorePage;
   let pageProblem: string | null = null;
-  try { page = parseStorePage(product.page, STORE_ID, product.id); } catch (error) {
+  try { page = parseStorePage(product.page, storeId, product.id); } catch (error) {
     const raw = product.page as Partial<StorePage> | null;
     page = raw && Array.isArray(raw.sections) ? { version: 1, sections: raw.sections } : starterStorePage();
     pageProblem = error instanceof StorePageError ? error.message : "The saved page could not be read.";
   }
   let brand: Brand;
-  try { brand = parseBrand(product.brand, STORE_ID, product.id); } catch { brand = { name: "", logoPath: null, accent: null, supportEmail: null, tiktokPixelId: null, metaPixelId: null }; }
+  try { brand = parseBrand(product.brand, storeId, product.id); } catch { brand = { name: "", logoPath: null, accent: null, supportEmail: null, tiktokPixelId: null, metaPixelId: null }; }
   const users = (products.data ?? []) as Pick<CatalogProduct, "id" | "name" | "shipping_profile_id">[];
   const allRates = (rates.data ?? []) as ShippingRate[];
 
@@ -115,8 +116,8 @@ export async function loadStoreEditor(id: string): Promise<StoreEditorData> {
     })),
     media,
     mediaBase: storefrontMediaBase(),
-    tiktokServerPixels: pixelsWithServerEvents(),
-    metaServerPixels: metaPixelsWithServerEvents(),
+    tiktokServerPixels: storeId === STORE_ID ? pixelsWithServerEvents() : [],
+    metaServerPixels: storeId === STORE_ID ? metaPixelsWithServerEvents() : [],
   };
 }
 
@@ -135,13 +136,13 @@ function storeSlug(value: unknown) {
 }
 
 /** Creates a draft store from the starter page; the owner then completes it in the editor. */
-export async function createStore(raw: Record<string, unknown>) {
+export async function createStore(raw: Record<string, unknown>, storeId = STORE_ID) {
   const name = requiredText(raw.name, 120, "Product name");
   const slug = storeSlug(raw.slug);
   const theme = (THEMES as readonly string[]).includes(raw.theme as string) ? raw.theme as ThemeId : "clean-minimal";
   const id = randomUUID();
   const { error } = await getSupabase().from("products").insert({
-    id, store_id: STORE_ID, slug, name, kind: "physical", status: "draft", currency: "usd", theme,
+    id, store_id: storeId, slug, name, kind: "physical", status: "draft", currency: "usd", theme,
     brand: { name: name.slice(0, 40).trim() }, page: starterStorePage(), policies: {},
   });
   if (error) {
@@ -156,21 +157,21 @@ const today = () => new Date().toISOString().slice(0, 10);
  * Copies a store into a new draft to test another product or angle: page, brand, policies, shipping
  * profile and variants, with every media file copied into the new store's own folder.
  */
-export async function duplicateStore(raw: Record<string, unknown>) {
-  const source = await loadPhysical(raw.id);
+export async function duplicateStore(raw: Record<string, unknown>, storeId = STORE_ID) {
+  const source = await loadPhysical(raw.id, storeId);
   const db = getSupabase();
   const id = randomUUID();
-  const from = mediaPrefix(STORE_ID, source.id);
-  const to = mediaPrefix(STORE_ID, id);
+  const from = mediaPrefix(storeId, source.id);
+  const to = mediaPrefix(storeId, id);
 
-  const { data: variants, error: variantError } = await db.from("product_variants").select("*").eq("store_id", STORE_ID).eq("product_id", source.id).order("position");
+  const { data: variants, error: variantError } = await db.from("product_variants").select("*").eq("store_id", storeId).eq("product_id", source.id).order("position");
   if (variantError) throw new Error("Could not load variants");
 
   // Every file in the media library, plus anything the store uses outside it (a logo).
   const storage = db.storage.from(BUCKET);
-  const { data: listed, error: listError } = await storage.list(mediaFolder(source.id).slice(0, -1), { limit: 1000 });
+  const { data: listed, error: listError } = await storage.list(mediaFolder(source.id, storeId).slice(0, -1), { limit: 1000 });
   if (listError) throw new HttpError(503, "Could not read the store's media. Please try again.");
-  const files = new Set(((listed ?? []) as { id: string | null; name: string }[]).filter((file) => file.id && mediaExtension(file.name)).map((file) => mediaFolder(source.id) + file.name));
+  const files = new Set(((listed ?? []) as { id: string | null; name: string }[]).filter((file) => file.id && mediaExtension(file.name)).map((file) => mediaFolder(source.id, storeId) + file.name));
   // The prefix is "<store uuid>/<product id>/": letters, digits, hyphens and slashes, none special in a pattern.
   const used = JSON.stringify([source.page, source.brand, variants]).match(new RegExp(`${from}[A-Za-z0-9/_.-]+`, "g")) ?? [];
   for (const path of used) if (!path.includes("..")) files.add(path);
@@ -182,35 +183,35 @@ export async function duplicateStore(raw: Record<string, unknown>) {
   const moved = <T,>(value: T): T => JSON.parse(JSON.stringify(value ?? null).split(from).join(to));
 
   const base = `${source.slug.slice(0, MAX_SLUG - 8)}-copy`;
-  const { data: taken, error: slugError } = await db.from("products").select("slug").eq("store_id", STORE_ID);
+  const { data: taken, error: slugError } = await db.from("products").select("slug").eq("store_id", storeId);
   if (slugError) throw new Error("Could not check store URLs");
   const slugs = new Set(((taken ?? []) as { slug: string }[]).map((row) => row.slug));
   let slug = base;
   for (let n = 2; slugs.has(slug); n++) slug = `${base}-${n}`;
 
   const { error } = await db.from("products").insert({
-    id, store_id: STORE_ID, slug, name: `${source.name.slice(0, 112)} (copy)`, tagline: source.tagline, kind: "physical", status: "draft",
+    id, store_id: storeId, slug, name: `${source.name.slice(0, 112)} (copy)`, tagline: source.tagline, kind: "physical", status: "draft",
     currency: source.currency, theme: source.theme, brand: moved(source.brand), page: moved(source.page), policies: source.policies ?? {},
     shipping_profile_id: source.shipping_profile_id,
   });
   if (error) throw error.code === "23505" ? new HttpError(409, "That store URL is already in use. Please try again.") : new HttpError(500, "Could not copy the store. Please try again.");
   const copies = ((variants ?? []) as ProductVariant[]).map((variant) => ({
-    id: randomUUID(), store_id: STORE_ID, product_id: id, position: variant.position, options: variant.options, sku: variant.sku,
+    id: randomUUID(), store_id: storeId, product_id: id, position: variant.position, options: variant.options, sku: variant.sku,
     price_amount: variant.price_amount, compare_at_amount: variant.compare_at_amount, image_path: moved(variant.image_path), active: variant.active,
     supplier_url: variant.supplier_url, supplier_sku: variant.supplier_sku,
   }));
   if (copies.length) {
     const { error: copyError } = await db.from("product_variants").insert(copies as never);
     if (copyError) {
-      await db.from("products").delete().eq("store_id", STORE_ID).eq("id", id);
+      await db.from("products").delete().eq("store_id", storeId).eq("id", id);
       throw new HttpError(500, "Could not copy the store's variants. Please try again.");
     }
   }
   return { id, slug };
 }
 
-export async function saveStore(raw: Record<string, unknown>) {
-  const product = await loadPhysical(raw.id);
+export async function saveStore(raw: Record<string, unknown>, storeId = STORE_ID) {
+  const product = await loadPhysical(raw.id, storeId);
   const revision = raw.revision;
   if (typeof revision !== "number" || !Number.isInteger(revision) || revision < 0) throw new HttpError(400, "Reload the editor and try again.");
   if (product.revision !== revision) throw conflict();
@@ -227,10 +228,10 @@ export async function saveStore(raw: Record<string, unknown>) {
 
   let brand: Brand, page: StorePage, variants: VariantInput[], profiles: ProfileInput[], policies: Record<string, unknown>;
   try {
-    brand = parseBrand(raw.brand, STORE_ID, product.id);
-    brand.logoPath = storeImagePath(brand.logoPath, STORE_ID, product.id, "Logo");
-    page = parseStorePage(raw.page, STORE_ID, product.id);
-    variants = parseVariants(raw.variants, STORE_ID, product.id);
+    brand = parseBrand(raw.brand, storeId, product.id);
+    brand.logoPath = storeImagePath(brand.logoPath, storeId, product.id, "Logo");
+    page = parseStorePage(raw.page, storeId, product.id);
+    variants = parseVariants(raw.variants, storeId, product.id);
     const submitted = raw.profiles ?? [];
     if (!Array.isArray(submitted) || submitted.length > MAX_PROFILES_PER_SAVE) throw new StoreInputError("Too many shipping profiles in one save.");
     profiles = submitted.map(parseShippingProfile);
@@ -249,7 +250,7 @@ export async function saveStore(raw: Record<string, unknown>) {
   const shippingProfileId = raw.shippingProfileId === null || raw.shippingProfileId === undefined ? null
     : isUuid(raw.shippingProfileId) ? raw.shippingProfileId.toLowerCase() : null;
   if (raw.shippingProfileId && !shippingProfileId) throw new HttpError(400, "Choose a shipping profile.");
-  const { data: existing, error: profileError } = await db.from("shipping_profiles").select("id").eq("store_id", STORE_ID);
+  const { data: existing, error: profileError } = await db.from("shipping_profiles").select("id").eq("store_id", storeId);
   if (profileError) throw new Error("Could not load shipping profiles");
   const known = new Set([...((existing ?? []) as { id: string }[]).map((profile) => profile.id), ...profiles.map((profile) => profile.id)]);
   if (shippingProfileId && !known.has(shippingProfileId)) throw new HttpError(400, "Choose a shipping profile.");
@@ -258,7 +259,7 @@ export async function saveStore(raw: Record<string, unknown>) {
     const chosen = profiles.find((profile) => profile.id === shippingProfileId);
     let usRates = chosen ? chosen.rates.filter((rate) => rate.market === "US" && rate.active).length : 0;
     if (!chosen && shippingProfileId) {
-      const { data, error } = await db.from("shipping_rates").select("id").eq("store_id", STORE_ID).eq("profile_id", shippingProfileId).eq("market", "US").eq("active", true);
+      const { data, error } = await db.from("shipping_rates").select("id").eq("store_id", storeId).eq("profile_id", shippingProfileId).eq("market", "US").eq("active", true);
       if (error) throw new Error("Could not load shipping rates");
       usRates = (data ?? []).length;
     }
@@ -267,17 +268,18 @@ export async function saveStore(raw: Record<string, unknown>) {
       usRates, supportEmail: brand.supportEmail, policies,
     });
     if (problems.length) throw new HttpError(400, `Before publishing: ${problems.join(" ")}`);
+    if (storeId !== STORE_ID) await paymentContext(storeId);
   }
 
   for (const profile of profiles) {
-    const { error } = await db.rpc("save_shipping_profile", { p_store_id: STORE_ID, p_profile_id: profile.id, p_name: profile.name, p_rates: profile.rates });
+    const { error } = await db.rpc("save_shipping_profile", { p_store_id: storeId, p_profile_id: profile.id, p_name: profile.name, p_rates: profile.rates });
     if (error) {
       throw error.code === "42501" ? new HttpError(409, "A shipping profile was changed elsewhere. Reload the editor.") : new HttpError(500, "Could not save shipping. Your changes are still in the editor; please try again.");
     }
   }
 
   const { data, error } = await db.rpc("save_physical_store", {
-    p_store_id: STORE_ID, p_product_id: product.id, p_revision: revision,
+    p_store_id: storeId, p_product_id: product.id, p_revision: revision,
     p_product: { name, slug, tagline, status, theme, brand, page, policies, shipping_profile_id: shippingProfileId },
     p_variants: variants,
   });
@@ -296,17 +298,17 @@ export async function saveStore(raw: Record<string, unknown>) {
  * validated exactly like a save, but only the preview reads it: the saved store, checkout and visitors
  * are untouched.
  */
-export async function saveStorePreview(raw: Record<string, unknown>) {
-  const product = await loadPhysical(raw.id);
+export async function saveStorePreview(raw: Record<string, unknown>, storeId = STORE_ID) {
+  const product = await loadPhysical(raw.id, storeId);
   const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 120) : product.name;
   const tagline = typeof raw.tagline === "string" ? raw.tagline.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 200) : "";
   const theme = (THEMES as readonly string[]).includes(raw.theme as string) ? raw.theme as ThemeId : (product.theme as ThemeId);
   let preview: StorePreviewDraft;
   try {
-    const brand = parseBrand(raw.brand, STORE_ID, product.id);
-    brand.logoPath = storeImagePath(brand.logoPath, STORE_ID, product.id, "Logo");
-    const page = parseStorePage(raw.page, STORE_ID, product.id);
-    const variants = parseVariants(raw.variants, STORE_ID, product.id).filter((variant) => variant.active);
+    const brand = parseBrand(raw.brand, storeId, product.id);
+    brand.logoPath = storeImagePath(brand.logoPath, storeId, product.id, "Logo");
+    const page = parseStorePage(raw.page, storeId, product.id);
+    const variants = parseVariants(raw.variants, storeId, product.id).filter((variant) => variant.active);
     preview = {
       name, tagline, theme, brand, page,
       variants: variants.map((variant) => ({ id: variant.id, options: variant.options, price_amount: variant.price_amount, compare_at_amount: variant.compare_at_amount, image_path: variant.image_path })),
@@ -316,7 +318,7 @@ export async function saveStorePreview(raw: Record<string, unknown>) {
     throw error;
   }
   const { error } = await getSupabase().from("products").update({ preview_draft: preview, preview_updated_at: new Date().toISOString() })
-    .eq("store_id", STORE_ID).eq("id", product.id);
+    .eq("store_id", storeId).eq("id", product.id);
   if (error) throw new HttpError(503, "Could not update the preview.");
   return { ok: true };
 }
@@ -324,14 +326,14 @@ export async function saveStorePreview(raw: Record<string, unknown>) {
 // ── Media ─────────────────────────────────────────────────────────────────────────────────────
 
 /** A signed URL for one new file in this store's media folder; the browser uploads it directly. */
-export async function prepareStoreMedia(raw: Record<string, unknown>) {
-  const product = await loadPhysical(raw.productId);
+export async function prepareStoreMedia(raw: Record<string, unknown>, storeId = STORE_ID) {
+  const product = await loadPhysical(raw.productId, storeId);
   const filename = typeof raw.filename === "string" ? raw.filename.slice(0, 255) : "";
   const size = typeof raw.size === "number" && Number.isSafeInteger(raw.size) ? raw.size : 0;
   const problem = mediaUploadProblem(filename, size);
   if (problem) throw new HttpError(400, problem);
   const extension = mediaExtension(filename)!;
-  const folder = mediaFolder(product.id);
+  const folder = mediaFolder(product.id, storeId);
   let path = `${folder}${randomUUID()}.${extension}`;
   const poster = raw.posterFor !== undefined && raw.posterFor !== null;
   if (poster) {
@@ -363,10 +365,10 @@ async function firstBytes(url: string, count = 64) {
 }
 
 /** Verifies an upload arrived intact and is the type its name says; removes it if not. */
-export async function confirmStoreMedia(raw: Record<string, unknown>): Promise<StoreMediaFile> {
-  const product = await loadPhysical(raw.productId);
+export async function confirmStoreMedia(raw: Record<string, unknown>, storeId = STORE_ID): Promise<StoreMediaFile> {
+  const product = await loadPhysical(raw.productId, storeId);
   const path = raw.path;
-  if (!validMediaPath(path, mediaFolder(product.id))) throw new HttpError(400, "Invalid media file.");
+  if (!validMediaPath(path, mediaFolder(product.id, storeId))) throw new HttpError(400, "Invalid media file.");
   const extension = mediaExtension(path)!;
   const type = STORE_MEDIA_TYPES[extension];
   const storage = getSupabase().storage.from(BUCKET);
@@ -390,24 +392,24 @@ export function detectStoreMedia(bytes: Uint8Array): StoreMediaExtension | null 
  * Saves a file an assistant sent (lib/mcp) into a store's media folder, after the same type and size
  * checks the editor's uploads get. Returns the path to use in the page or variants.
  */
-export async function importStoreMediaBytes(productId: string, bytes: Uint8Array): Promise<StoreMediaFile & { url: string }> {
-  const product = await loadPhysical(productId);
+export async function importStoreMediaBytes(productId: string, bytes: Uint8Array, storeId = STORE_ID): Promise<StoreMediaFile & { url: string }> {
+  const product = await loadPhysical(productId, storeId);
   const extension = detectStoreMedia(bytes.subarray(0, 64));
   if (!extension) throw new HttpError(400, "That file isn't a PNG, JPG, WebP, AVIF or GIF image, or an MP4 or WebM video.");
   const type = STORE_MEDIA_TYPES[extension];
   if (!bytes.length || bytes.length > type.maxBytes) throw new HttpError(400, `That ${type.kind} is too large. The limit is ${formatBytes(type.maxBytes)}.`);
-  const path = `${mediaFolder(product.id)}${randomUUID()}.${extension}`;
+  const path = `${mediaFolder(product.id, storeId)}${randomUUID()}.${extension}`;
   const { error } = await getSupabase().storage.from(BUCKET).upload(path, bytes, { contentType: type.contentType, upsert: false });
   if (error) throw new HttpError(503, "Could not save the file. Please try again.");
   return { path, kind: type.kind, size: bytes.length, createdAt: new Date().toISOString(), poster: null, url: storefrontMediaBase() + path };
 }
 
 /** Deletes an unused file (and a video's generated poster). Files used by the saved store are kept. */
-export async function deleteStoreMedia(raw: Record<string, unknown>) {
-  const product = await loadPhysical(raw.productId);
+export async function deleteStoreMedia(raw: Record<string, unknown>, storeId = STORE_ID) {
+  const product = await loadPhysical(raw.productId, storeId);
   const path = raw.path;
-  if (!validMediaPath(path, mediaFolder(product.id))) throw new HttpError(400, "Invalid media file.");
-  const { data: variants, error } = await getSupabase().from("product_variants").select("image_path").eq("store_id", STORE_ID).eq("product_id", product.id);
+  if (!validMediaPath(path, mediaFolder(product.id, storeId))) throw new HttpError(400, "Invalid media file.");
+  const { data: variants, error } = await getSupabase().from("product_variants").select("image_path").eq("store_id", storeId).eq("product_id", product.id);
   if (error) throw new Error("Could not load variants");
   const used = JSON.stringify([product.page, product.brand]).includes(JSON.stringify(path)) ||
     ((variants ?? []) as Pick<ProductVariant, "image_path">[]).some((variant) => variant.image_path === path);
