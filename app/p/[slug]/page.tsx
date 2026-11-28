@@ -20,6 +20,7 @@ import { approvedReviews } from "@/lib/reviews";
 import { ProductReviews } from "@/components/site/product-reviews";
 import { digitalProductLd } from "@/lib/seo";
 import { publicProductUrl } from "@/lib/domains";
+import { getEnv } from "@/lib/env";
 import { monaSans } from "../../studio-fonts";
 import "../../studio.css";
 
@@ -172,7 +173,7 @@ function RelatedTile({ product, delay }: { product: CatalogProduct; delay: numbe
     <Link href={`/p/${product.slug}`} className="vc-related-card" data-reveal data-delay={delay % 2 ? "1" : undefined}>
       <div className="vc-related-thumb">
         {product.cover_path
-          ? <Image src={coverSrc(product)} alt="" fill sizes="(max-width: 600px) 96px, (max-width: 900px) 44vw, 22vw" />
+          ? <Image src={new URL(coverSrc(product), getEnv().APP_URL).toString()} alt="" fill unoptimized sizes="(max-width: 600px) 96px, (max-width: 900px) 44vw, 22vw" />
           : <Monogram className="vc-product-mark" />}
       </div>
       <div className="vc-related-info">

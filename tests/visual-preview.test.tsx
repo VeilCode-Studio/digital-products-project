@@ -22,6 +22,14 @@ import { AdminShell } from "../components/admin-shell";
 import { PaymentSettings } from "../components/payment-settings";
 import { DomainsView } from "../components/domains-view";
 
+it("loads related-product covers from the platform when the product page is on a custom domain", async () => {
+  resetFakes();
+  const suggestion = seedProduct({ slug: "suggestion", cover_path: "public-cover.png", cover_type: "image/png" });
+  const product = seedProduct({ slug: "main", related_ids: [suggestion.id] });
+  const markup = renderToStaticMarkup(await ProductPage({ params: Promise.resolve({ slug: product.slug }), searchParams: Promise.resolve({}) }));
+  expect(markup).toContain(`src="https://delivery.example.com/api/products/${suggestion.id}/cover/${suggestion.revision}"`);
+});
+
 it("renders real store and owner pages with an isolated catalog for browser review", async () => {
   resetFakes();
   const product = seedProduct({ id: "lead-to-kickoff", slug: "lead-to-kickoff", name: "Lead to Kickoff: The Client Onboarding System", tagline: "Turn a new inquiry into a confident project kickoff.", description: "A practical guide and editable templates for the work between a new lead and a great kickoff.\n\nBuild a clear, repeatable process that makes every new client feel in good hands." });
