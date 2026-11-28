@@ -13,13 +13,13 @@ function assertConnectEnabled() {
   if (!connectEnabled()) throw new HttpError(503, "Stripe connections are not enabled yet.");
   if (!connectConfigured()) throw new HttpError(503, "Stripe connection setup is incomplete. Please contact the store owner.");
 }
-export async function startStripeConnection(ownerId: string) {
+export async function startStripeConnection(ownerId: string, storeId = STORE_ID) {
   assertConnectEnabled();
-  await assertStoreOwner(ownerId);
+  await assertStoreOwner(ownerId, storeId);
   const clientId = connectClientId();
   const state = randomBytes(32).toString("base64url");
   const { error } = await getSupabase().from("payment_oauth_attempts").insert({
-    state_hash: stateHash(state), store_id: STORE_ID, owner_user_id: ownerId,
+    state_hash: stateHash(state), store_id: storeId, owner_user_id: ownerId,
     livemode: stripeLivemode(), expires_at: new Date(Date.now() + 10 * 60_000).toISOString(), consumed_at: null,
   });
   if (error) throw new HttpError(503, "Could not start the connection. Please try again.");
@@ -29,14 +29,14 @@ export async function startStripeConnection(ownerId: string) {
   });
   return { state, url };
 }
-export async function completeStripeConnection(ownerId: string, params: URLSearchParams, cookieState?: string) {
+export async function completeStripeConnection(ownerId: string, params: URLSearchParams, cookieState?: string, storeId = STORE_ID) {
   assertConnectEnabled();
-  await assertStoreOwner(ownerId);
+  await assertStoreOwner(ownerId, storeId);
   const state = params.get("state");
   if (!state || !cookieState || !/^[A-Za-z0-9_-]{43}$/.test(state) || !/^[A-Za-z0-9_-]{43}$/.test(cookieState) ||
       !timingSafeEqual(Buffer.from(state), Buffer.from(cookieState))) throw new HttpError(400, "Connection expired. Please start again.");
   const { data, error } = await getSupabase().from("payment_oauth_attempts").update({ consumed_at: new Date().toISOString() })
-    .eq("state_hash", stateHash(state)).eq("store_id", STORE_ID).eq("owner_user_id", ownerId)
+    .eq("state_hash", stateHash(state)).eq("store_id", storeId).eq("owner_user_id", ownerId)
     .eq("livemode", stripeLivemode()).is("consumed_at", null).gt("expires_at", new Date().toISOString()).select("state_hash").maybeSingle();
   if (error || !data) throw new HttpError(400, "Connection expired. Please start again.");
   if (params.has("error")) return "cancelled";
@@ -54,7 +54,7 @@ export async function completeStripeConnection(ownerId: string, params: URLSearc
   }
   const status = accountStatus(account);
   const activated = await getSupabase().rpc("activate_payment_connection", {
-    p_store_id: STORE_ID, p_owner_id: ownerId, p_account_id: account.id, p_livemode: stripeLivemode(),
+    p_store_id: storeId, p_owner_id: ownerId, p_account_id: account.id, p_livemode: stripeLivemode(),
     p_charges_enabled: status.charges_enabled, p_payouts_enabled: status.payouts_enabled,
     p_country: status.country ?? "", p_requirements: status.requirements,
   });
@@ -62,14 +62,14 @@ export async function completeStripeConnection(ownerId: string, params: URLSearc
   // No OAuth access/refresh tokens are persisted or returned to the browser.
   return status.status;
 }
-export async function disconnectStripe(ownerId: string) {
+export async function disconnectStripe(ownerId: string, storeId = STORE_ID) {
   assertConnectEnabled();
-  await assertStoreOwner(ownerId);
-  const connection = await currentStripeConnection();
+  await assertStoreOwner(ownerId, storeId);
+  const connection = await currentStripeConnection(storeId);
   if (!connection || connection.status === "disconnected") return;
   await getStripe().oauth.deauthorize({ client_id: connectClientId(), stripe_user_id: connection.external_account_id }, { maxNetworkRetries: 0 });
   const { error } = await getSupabase().from("payment_connections").update({
     status: "disconnected", charges_enabled: false, payouts_enabled: false, updated_at: new Date().toISOString(),
-  }).eq("id", connection.id).eq("store_id", STORE_ID);
+  }).eq("id", connection.id).eq("store_id", storeId);
   if (error) throw new HttpError(503, "Stripe disconnected. Reload to check the updated payment status.");
 }

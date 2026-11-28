@@ -1,5 +1,6 @@
 import { ownerPage } from "@/lib/auth";
 import { getStore } from "@/lib/catalog";
+import { workspaceForUser } from "@/lib/workspace";
 import { AdminShell } from "@/components/admin-shell";
 
 /**
@@ -7,6 +8,8 @@ import { AdminShell } from "@/components/admin-shell";
  * area and the sidebar never leaves the screen. Pages still check the owner themselves.
  */
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const [owner, store] = await Promise.all([ownerPage(), getStore()]);
+  const owner = await ownerPage();
+  const { storeId } = await workspaceForUser(owner.id);
+  const store = await getStore(storeId);
   return <AdminShell owner={owner} storeName={store.name}>{children}</AdminShell>;
 }

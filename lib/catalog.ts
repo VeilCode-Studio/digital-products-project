@@ -7,8 +7,8 @@ import { getProduct } from "./products";
 import { ownerUser } from "./auth";
 
 /** Cached per request, since the workspace layout and its page can both need it. */
-export const getStore = cache(async function getStore() {
-  const { data, error } = await getSupabase().from("stores").select("*").eq("id", STORE_ID).single();
+export const getStore = cache(async function getStore(storeId = STORE_ID) {
+  const { data, error } = await getSupabase().from("stores").select("*").eq("id", storeId).single();
   if (error || !data) throw new Error("Store unavailable. Apply the storefront migration.");
   return data;
 });
